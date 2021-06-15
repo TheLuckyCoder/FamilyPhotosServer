@@ -3,7 +3,12 @@ package net.theluckycoder.homeserver.photos
 import com.fasterxml.jackson.core.JsonFactory
 import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.core.JsonToken
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeout
 import net.theluckycoder.homeserver.photos.configs.SecurityConfiguration
+import net.theluckycoder.homeserver.photos.extensions.asyncForEach
 import net.theluckycoder.homeserver.photos.model.Photo
 import net.theluckycoder.homeserver.photos.model.User
 import net.theluckycoder.homeserver.photos.service.FileStorageService
@@ -37,36 +42,48 @@ class StartData @Autowired constructor(
         User(displayName = "Adonis", userName = "adonis", password = getPassword("qpph2t6qzptp9"), roles = USER_ROLE),
     )
 
-    fun scanForPhotos(user: User): List<Photo> {
-        val photos = mutableListOf<Photo>()
-
+    suspend fun scanForPhotos(user: User): List<Photo> = coroutineScope {
         val userFolder = user.userName
+
         fileStorageService.listFiles("photos/$userFolder").maxDepth(2)
             .filter { it.isFile }
             .filterNot { it.extension == "json" }
-            .forEach { file ->
+            .asyncForEach(this) { file ->
                 try {
-                    val folderName = file.parentFile.name
-                    val isInSubFolder = folderName != userFolder
+                    withTimeout(8000) {
+                        val folderName = file.parentFile.name
+                        val isInSubFolder = folderName != userFolder
 
-                    val creationTimestamp = getPhotoCreationTime(file) ?: getAlternativePhotoCreationTime(file) ?: System.currentTimeMillis()
+                        val creationTimestamp = getPhotoCreationTime(file) ?: getAlternativePhotoCreationTime(file)
+                        if (creationTimestamp == null) {
+                            println("No timestamp: ${file.absolutePath}")
+                        }
 
-                    photos += Photo(
-                        ownerUserId = user.id,
-                        name = file.name,
-                        folder = folderName.takeIf { isInSubFolder },
-                        timeCreated = creationTimestamp,
-                        fileSize = file.length()
-                    )
+                        Photo(
+                            ownerUserId = user.id,
+                            name = file.name,
+                            folder = folderName.takeIf { isInSubFolder },
+                            timeCreated = creationTimestamp ?: System.currentTimeMillis(),
+                            fileSize = file.length()
+                        )
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    println("Time out: ${file.absolutePath}")
+                    null
                 } catch (e: Exception) {
                     e.printStackTrace()
+                    null
                 }
             }
-
-        return photos
+            .toList()
+            .awaitAll()
+            .filterNotNull()
     }
 
-    private val fileDatePattern = ".*([0-9]{8}).*([0-9]{6}).*".toPattern()
+    private val fileDateHourPattern = ".*([0-9]{8}).*([0-9]{6}).*".toPattern()
+    private val fileDatePattern = ".*([0-9]{8}).*".toPattern()
+    private val dateHourFormatter = SimpleDateFormat("yyyyMMddHHmmss")
+    private val dateFormatter = SimpleDateFormat("yyyyMMdd")
 
     private fun getPhotoCreationTime(file: File): Long? {
         val jsonFile = File(file.parentFile, "${file.name}.json")
@@ -77,20 +94,32 @@ class StartData @Autowired constructor(
             val jParser: JsonParser = jfactory.createParser(content)
 
             var timestamp: Long? = null
+            var photoTaken: Long? = null
 
             while (jParser.nextToken() !== JsonToken.END_OBJECT) {
-                val fieldname = jParser.currentName
-                if ("creationTime" == fieldname) {
-                    jParser.nextToken()
-                    while (jParser.nextToken() != JsonToken.END_OBJECT) {
-                        if ("timestamp" == jParser.currentName)
-                            timestamp = jParser.valueAsLong
+                when (jParser.currentName) {
+                    "creationTime" -> {
+                        jParser.nextToken()
+                        while (jParser.nextToken() != JsonToken.END_OBJECT) {
+                            if ("timestamp" == jParser.currentName)
+                                timestamp = jParser.valueAsLong
+                        }
+                    }
+                    "photoTakenTime" -> {
+                        jParser.nextToken()
+                        while (jParser.nextToken() != JsonToken.END_OBJECT) {
+                            if ("timestamp" == jParser.currentName)
+                                photoTaken = jParser.valueAsLong
+                        }
+                    }
+                    else -> if (timestamp != null && photoTaken != null) {
+                        break
                     }
                 }
             }
             jParser.close()
 
-            return timestamp
+            return listOfNotNull(timestamp, photoTaken).minOrNull()
         } catch (e: Exception) {
             println("Failed to parse Json ${jsonFile.absolutePath}")
             return null
@@ -99,6 +128,30 @@ class StartData @Autowired constructor(
 
     private fun getAlternativePhotoCreationTime(file: File): Long? {
         val path = file.toPath()
+
+        try {
+            val name = file.nameWithoutExtension
+            require(name.length >= 14)
+
+            var matcher = fileDateHourPattern.matcher(name)
+            if (matcher.find()) {
+                val date = matcher.group(1)
+                val hour = matcher.group(2)
+
+                dateHourFormatter.parse(date + hour).time
+            } else {
+                matcher = fileDatePattern.matcher(name)
+                if (matcher.find()) {
+                    val date = matcher.group(1)
+
+                    dateFormatter.parse(date).time
+                } else null
+            }
+        } catch (e: Exception) {
+            null
+        }?.let {
+            return it
+        }
 
         var view: BasicFileAttributes? = null
         try {
@@ -109,25 +162,8 @@ class StartData @Autowired constructor(
         val fileTimeCreation1 = view?.creationTime()?.toMillis()
         val fileTimeCreation2 = view?.lastModifiedTime()?.toMillis()
 
-        //println(date + hour)
-        val fileTimeCreation3 = try {
-            val dateFormatter = SimpleDateFormat("yyyyMMddHHmmss")
-            val name = file.nameWithoutExtension
-            require(name.length >= 14)
-
-            val matcher = fileDatePattern.matcher(file.nameWithoutExtension)
-            if (matcher.find()) {
-                val date = matcher.group(1)
-                val hour = matcher.group(2)
-
-                dateFormatter.parse(date + hour).time
-            } else null
-        } catch (e: Exception) {
-            null
-        }
-
-        return listOfNotNull(fileTimeCreation1, fileTimeCreation2, fileTimeCreation3)
-            .filter { it != 0L }
+        return listOfNotNull(fileTimeCreation1, fileTimeCreation2)
+            .filterNot { it <= 1000000000000L }
             .minByOrNull { it }
     }
 

@@ -73,7 +73,7 @@ class PhotosController @Autowired constructor(
             "image/*"
         }
 
-       if (downSizedRequested && contentType.startsWith("image/")) {
+       if (downSizedRequested && contentType.startsWith("image/") && contentType != "image/gif") {
            try {
                val outputStream = ByteArrayOutputStream()
                Thumbnails.of(fileStorageService.getFile(fileName))

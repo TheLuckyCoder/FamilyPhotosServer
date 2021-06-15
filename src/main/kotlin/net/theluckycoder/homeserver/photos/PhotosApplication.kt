@@ -37,7 +37,7 @@ fun main(args: Array<String>): Unit = runBlocking {
     }
 }
 
-private fun manageStartData(applicationContext: ConfigurableApplicationContext) {
+private suspend fun manageStartData(applicationContext: ConfigurableApplicationContext) {
     val fileStorageService = applicationContext.getBean<FileStorageService>()
     val userRepository = applicationContext.getBean<UserRepository>()
     val photoRepository = applicationContext.getBean<PhotoRepository>()
