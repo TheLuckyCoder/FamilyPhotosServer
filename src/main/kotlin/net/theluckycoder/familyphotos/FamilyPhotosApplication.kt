@@ -28,7 +28,7 @@ fun main(args: Array<String>): Unit = runBlocking {
     val logger = LoggerExtensions.getLogger<FamilyPhotosApplication>()
 
     coroutineScope {
-        launch(Dispatchers.IO) {
+        launch(Dispatchers.Default) {
             val time = measureTime {
                 manageStartData(applicationContext)
             }

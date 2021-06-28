@@ -1,12 +1,16 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.kapt3.base.Kapt.kapt
+
 //import org.springframework.boot.gradle.tasks.bundling.BootBuildImage
 
 plugins {
-	id("org.springframework.boot") version "2.5.1"
+	id("org.springframework.boot") version "2.5.2"
 	id("io.spring.dependency-management") version "1.0.11.RELEASE"
-	kotlin("jvm") version "1.5.20"
-	kotlin("plugin.spring") version "1.5.20"
-	kotlin("plugin.jpa") version "1.5.20"
+
+	val kotlinVersion = "1.5.20"
+	kotlin("jvm") version kotlinVersion
+	kotlin("plugin.spring") version kotlinVersion
+	kotlin("plugin.jpa") version kotlinVersion
 //	id("org.springframework.experimental.aot") version "0.10.0"
 //	id("org.graalvm.buildtools.native") version "0.9.0"
 
@@ -32,7 +36,6 @@ dependencies {
 //	implementation("org.springframework.boot:spring-boot-starter-data-rest")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-web")
-	implementation("org.springframework.boot:spring-boot-configuration-processor")
 //	implementation("org.springframework.boot:pring-boot-starter-undertow")
 
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
