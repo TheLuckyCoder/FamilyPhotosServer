@@ -12,13 +12,14 @@ import net.theluckycoder.familyphotos.repository.findByUser
 import net.theluckycoder.familyphotos.service.FileStorageService
 import org.springframework.beans.factory.getBean
 import org.springframework.boot.autoconfigure.SpringBootApplication
+import org.springframework.boot.autoconfigure.web.embedded.EmbeddedWebServerFactoryCustomizerAutoConfiguration
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.runApplication
 import org.springframework.context.ConfigurableApplicationContext
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
-@SpringBootApplication
+@SpringBootApplication(exclude = [EmbeddedWebServerFactoryCustomizerAutoConfiguration::class])
 @EnableConfigurationProperties(FileStorageProperties::class)
 class FamilyPhotosApplication
 

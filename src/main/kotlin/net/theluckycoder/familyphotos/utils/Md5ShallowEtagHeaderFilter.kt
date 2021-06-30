@@ -1,10 +1,17 @@
 package net.theluckycoder.familyphotos.utils
 
+import org.springframework.util.DigestUtils
 import org.springframework.web.filter.ShallowEtagHeaderFilter
+import java.io.InputStream
 
-class Sha512ShallowEtagHeaderFilter : ShallowEtagHeaderFilter() {
-    protected fun generateETagHeaderValue(bytes: ByteArray?): String {
-        val hash: HashCode = Hashing.sha512().hashBytes(bytes)
-        return "\"" + hash + "\""
+class Md5ShallowEtagHeaderFilter : ShallowEtagHeaderFilter() {
+    fun generateETagHeaderValue(inputStream: InputStream): String {
+        val builder = StringBuilder(37)
+
+        builder.append('"')
+        DigestUtils.appendMd5DigestAsHex(inputStream, builder)
+        builder.append('"')
+
+        return builder.toString()
     }
 }

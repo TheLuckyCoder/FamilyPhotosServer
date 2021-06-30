@@ -1,6 +1,5 @@
 package net.theluckycoder.familyphotos.controller
 
-import net.coobird.thumbnailator.Thumbnails
 import net.theluckycoder.familyphotos.StartData
 import net.theluckycoder.familyphotos.exceptions.FileStorageException
 import net.theluckycoder.familyphotos.exceptions.PhotoNotFoundException
@@ -11,22 +10,32 @@ import net.theluckycoder.familyphotos.repository.PhotoRepository
 import net.theluckycoder.familyphotos.repository.UserRepository
 import net.theluckycoder.familyphotos.repository.findByIdOrThrow
 import net.theluckycoder.familyphotos.service.FileStorageService
-import org.apache.tomcat.util.http.fileupload.ByteArrayOutputStream
+import net.theluckycoder.familyphotos.utils.Md5ShallowEtagHeaderFilter
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.core.io.ByteArrayResource
-import org.springframework.core.io.Resource
 import org.springframework.data.repository.findByIdOrNull
+import org.springframework.http.CacheControl
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpHeaders.IF_NONE_MATCH
+import org.springframework.http.HttpStatus
 import org.springframework.http.InvalidMediaTypeException
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody
+import java.io.File
+import java.io.OutputStream
+import java.nio.file.Files
+import java.time.Duration
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import javax.servlet.http.HttpServletRequest
+
 
 @RestController
 class PhotosController @Autowired constructor(
@@ -35,9 +44,21 @@ class PhotosController @Autowired constructor(
     private val fileStorageService: FileStorageService,
 ) {
 
-    private val logger = LoggerExtensions.getLogger<PhotosController>()
-
+    private val log = LoggerExtensions.getLogger<PhotosController>()
+    private val etagHeaderFilter = Md5ShallowEtagHeaderFilter()
     private val publicUser by lazy { userRepository.findByUserName(StartData.PUBLIC_USERNAME).get() }
+
+    private val photoEtagMap = ConcurrentHashMap<Long, String>()
+    private val cacheControl = CacheControl.empty().cachePrivate().mustRevalidate()
+
+    // We assume the photos won't be changed since they can't be right now
+    private fun getFileEtag(photo: Photo, file: File): String {
+        return photoEtagMap.getOrPut(photo.id) {
+            file.inputStream().use {
+                etagHeaderFilter.generateETagHeaderValue(it)
+            }
+        }
+    }
 
     @GetMapping("/photos/{userId}")
     fun getPhotosList(@PathVariable userId: String): Iterable<Photo> =
@@ -47,12 +68,12 @@ class PhotosController @Autowired constructor(
     fun downloadPhoto(
         @PathVariable userId: String,
         @PathVariable photoId: String,
-        @RequestParam(defaultValue = "false") thumbnail: String,
-        request: HttpServletRequest
-    ): ResponseEntity<Resource?> {
+        request: HttpServletRequest,
+        @RequestHeader(IF_NONE_MATCH) requestEtagOpt: Optional<String>,
+    ): ResponseEntity<StreamingResponseBody> {
+
         val userIdLong = userId.toLong()
         val photoIdLong = photoId.toLong()
-        val thumbnailRequested = thumbnail.toBoolean()
 
         val user = userRepository.findByIdOrThrow(userIdLong)
         val photo = photoRepository.findByIdOrNull(photoIdLong)
@@ -60,44 +81,45 @@ class PhotosController @Autowired constructor(
             throw PhotoNotFoundException("There is no Photo with id $photoId")
 
         val fileName = photo.getStorePath(user)
+        val file = fileStorageService.resolveFileName(fileName)
 
-        // Load file as Resource
-        var resource = fileStorageService.loadFileAsResource(fileName)
+        val serverEtag = getFileEtag(photo, file)
+        if (!requestEtagOpt.isEmpty && requestEtagOpt.get() == serverEtag) {
+            log.info("Photo ${photo.id} requested by user $userIdLong, cached on client side")
+
+            return ResponseEntity
+                .status(HttpStatus.NOT_MODIFIED)
+                .eTag(serverEtag)
+                .cacheControl(cacheControl)
+                .body(null)
+        }
 
         // Try to determine file's content type
         var contentType = try {
-            request.servletContext.getMimeTypeAll(resource.file)
+            request.servletContext.getMimeTypeAll(file)
         } catch (e: InvalidMediaTypeException) {
-            logger.warn("Could not automatically determine file type.", e)
+            log.warn("Could not automatically determine file type.", e)
             // Fallback to the default content type if type could not be determined
             "image/*"
         }
 
-        if (thumbnailRequested && contentType.startsWith("image/") && contentType != "image/gif") {
-            logger.info("Photo ${photo.id} requested by user $userIdLong (Thumbnail)")
+        val responseBody = StreamingResponseBody { outputStream: OutputStream ->
             try {
-                val outputStream = ByteArrayOutputStream()
-                Thumbnails.of(fileStorageService.getFile(fileName))
-                    .size(300, 300)
-                    .outputFormat("jpeg")
-                    .toOutputStream(outputStream)
-
-                resource = ByteArrayResource(outputStream.toByteArray())
-                contentType = "image/jpeg"
-            } catch (e: Exception) {
-                e.printStackTrace()
+                Files.copy(file.toPath(), outputStream)
+            } catch (_: Exception) {
             }
-        } else {
-            logger.info("Photo ${photo.id} requested by user $userIdLong")
         }
+        log.info("Photo ${photo.id} requested by user $userIdLong")
 
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(contentType))
             .header(
                 HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"${resource.filename}\""
+                "attachment; filename=\"${file.name}\""
             )
-            .body<Resource?>(resource)
+            .cacheControl(cacheControl)
+            .eTag(serverEtag)
+            .body(responseBody)
     }
 
     @PostMapping("/photos/{userId}/upload")
@@ -109,7 +131,7 @@ class PhotosController @Autowired constructor(
         val userIdLong = userId.toLong()
         val timestampCreated = timeCreated.toLong()
         require(timestampCreated > 0) { "Invalid photo creation timestamp" }
-//        require(file.contentType!!.startsWith("image/")) { "Uploaded file has to be an image or a video" }
+        require(file.contentType!!.startsWith("image/")) { "Uploaded file has to be an image or a video" }
 
         val user = userRepository.findByIdOrThrow(userIdLong)
         val simpleFileName = file.originalFilename!!.substringAfterLast('/')
@@ -127,7 +149,7 @@ class PhotosController @Autowired constructor(
         )
 
         val filePath = photo.getStorePath(user)
-        logger.info("Saving Photo $photo to $filePath")
+        log.info("Saving Photo $photo to $filePath")
 
         fileStorageService.storeFile(file, filePath)
         fileStorageService.setCreationTime(filePath, timestampCreated)
@@ -152,7 +174,7 @@ class PhotosController @Autowired constructor(
 
         if (fileStorageService.existsFile(path)) {
             if (!fileStorageService.deleteFile(path)) {
-                logger.error("Failed to delete file {$path}")
+                log.error("Failed to delete file {$path}")
                 throw FileStorageException("Delete operation failed")
             }
         } else {
@@ -188,7 +210,7 @@ class PhotosController @Autowired constructor(
         val fromFile = photo.getStorePath(user)
         val toFile = publicPhoto.getStorePath(publicUser)
         if (!fileStorageService.moveFile(fromFile, toFile)) {
-            logger.error("Failed to move file from {$fromFile} to {$toFile}")
+            log.error("Failed to move file from {$fromFile} to {$toFile}")
             throw FileStorageException("Move operation failed")
         }
 
@@ -200,8 +222,9 @@ class PhotosController @Autowired constructor(
     @GetMapping("/public_photos/download/{photoId}")
     fun downloadPublicPhoto(
         @PathVariable photoId: String,
-        request: HttpServletRequest
-    ) = downloadPhoto(publicUser.id.toString(), photoId, false.toString(), request)
+        request: HttpServletRequest,
+        @RequestHeader(IF_NONE_MATCH) requestEtagOpt: Optional<String>,
+    ) = downloadPhoto(publicUser.id.toString(), photoId, request, requestEtagOpt)
 
     @PostMapping("/public_photos/delete/{photoId}")
     fun deletePublicPhoto(

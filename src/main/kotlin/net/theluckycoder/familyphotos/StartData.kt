@@ -54,7 +54,10 @@ class StartData @Autowired constructor(
                         val folderName = file.parentFile.name
                         val isInSubFolder = folderName != userFolder
 
-                        val creationTimestamp = getPhotoCreationTime(file) ?: getAlternativePhotoCreationTime(file)
+                        val creationTimestamp = listOfNotNull(
+                            getJsonDateTime(file),
+                            getRegexDateTime(file)
+                        ).minByOrNull { it }
                         if (creationTimestamp == null) {
                             println("No timestamp: ${file.absolutePath}")
                         }
@@ -82,13 +85,15 @@ class StartData @Autowired constructor(
 
     private val fileDateHourPattern = ".*([0-9]{8}).*([0-9]{6}).*".toPattern()
     private val fileDatePattern = ".*([0-9]{8}).*".toPattern()
-    private val dateHourFormatter = SimpleDateFormat("yyyyMMddHHmmss")
+    private val dateHourFormatter = SimpleDateFormat("yyyyMMdd HHmmss")
     private val dateFormatter = SimpleDateFormat("yyyyMMdd")
 
-    private fun getPhotoCreationTime(file: File): Long? {
-        val jsonFile = File(file.parentFile, "${file.name}.json")
+    private fun getJsonDateTime(file: File): Long? {
+        val jsonFileName = file.nameWithoutExtension
+            .removeSuffix("-editat").removeSuffix("(1)") + "." + file.extension
+        val jsonFile = File(file.parentFile, "$jsonFileName.json")
+
         try {
-            if (!jsonFile.exists()) return null
             val content = jsonFile.readText()
             val jfactory = JsonFactory()
             val jParser: JsonParser = jfactory.createParser(content)
@@ -126,19 +131,17 @@ class StartData @Autowired constructor(
         }
     }
 
-    private fun getAlternativePhotoCreationTime(file: File): Long? {
-        val path = file.toPath()
-
-        try {
+    private fun getRegexDateTime(file: File): Long? {
+        return try {
             val name = file.nameWithoutExtension
-            require(name.length >= 14)
+            require(name.length >= 8)
 
             var matcher = fileDateHourPattern.matcher(name)
             if (matcher.find()) {
                 val date = matcher.group(1)
                 val hour = matcher.group(2)
 
-                dateHourFormatter.parse(date + hour).time
+                dateHourFormatter.parse("$date $hour").time
             } else {
                 matcher = fileDatePattern.matcher(name)
                 if (matcher.find()) {
@@ -149,22 +152,7 @@ class StartData @Autowired constructor(
             }
         } catch (e: Exception) {
             null
-        }?.let {
-            return it
         }
-
-        var view: BasicFileAttributes? = null
-        try {
-            view = Files.getFileAttributeView(path, BasicFileAttributeView::class.java).readAttributes()
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
-        val fileTimeCreation1 = view?.creationTime()?.toMillis()
-        val fileTimeCreation2 = view?.lastModifiedTime()?.toMillis()
-
-        return listOfNotNull(fileTimeCreation1, fileTimeCreation2)
-            .filterNot { it <= 1000000000000L }
-            .minByOrNull { it }
     }
 
     private fun getPassword(password: String): String {

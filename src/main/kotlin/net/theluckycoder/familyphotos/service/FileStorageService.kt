@@ -34,7 +34,7 @@ class FileStorageService @Autowired constructor(fileStorageProperties: FileStora
         }
     }
 
-    fun getFile(fileName: String) = fileStorageLocation.resolve(fileName).toFile()
+    fun resolveFileName(fileName: String) = fileStorageLocation.resolve(fileName).toFile()
 
     fun storeFile(file: MultipartFile, fileName: String) {
         try {
