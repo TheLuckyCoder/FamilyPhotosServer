@@ -6,6 +6,7 @@ import net.theluckycoder.familyphotos.exceptions.PhotoNotFoundException
 import net.theluckycoder.familyphotos.extensions.LoggerExtensions
 import net.theluckycoder.familyphotos.extensions.getMimeTypeAll
 import net.theluckycoder.familyphotos.model.Photo
+import net.theluckycoder.familyphotos.model.User
 import net.theluckycoder.familyphotos.repository.PhotoRepository
 import net.theluckycoder.familyphotos.repository.UserRepository
 import net.theluckycoder.familyphotos.repository.findByIdOrThrow
@@ -28,14 +29,11 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody
-import java.io.File
 import java.io.OutputStream
 import java.nio.file.Files
-import java.time.Duration
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import javax.servlet.http.HttpServletRequest
-
 
 @RestController
 class PhotosController @Autowired constructor(
@@ -48,13 +46,13 @@ class PhotosController @Autowired constructor(
     private val etagHeaderFilter = Md5ShallowEtagHeaderFilter()
     private val publicUser by lazy { userRepository.findByUserName(StartData.PUBLIC_USERNAME).get() }
 
-    private val photoEtagMap = ConcurrentHashMap<Long, String>()
+    private val photoEtagMap = ConcurrentHashMap<Long, String>(1024)
     private val cacheControl = CacheControl.empty().cachePrivate().mustRevalidate()
 
     // We assume the photos won't be changed since they can't be right now
-    private fun getFileEtag(photo: Photo, file: File): String {
+    private fun getFileEtag(photo: Photo, user: User): String {
         return photoEtagMap.getOrPut(photo.id) {
-            file.inputStream().use {
+            fileStorageService.resolveFileName(photo.getStorePath(user)).inputStream().use {
                 etagHeaderFilter.generateETagHeaderValue(it)
             }
         }
@@ -80,10 +78,7 @@ class PhotosController @Autowired constructor(
         if (photo == null || photo.ownerUserId != userIdLong)
             throw PhotoNotFoundException("There is no Photo with id $photoId")
 
-        val fileName = photo.getStorePath(user)
-        val file = fileStorageService.resolveFileName(fileName)
-
-        val serverEtag = getFileEtag(photo, file)
+        val serverEtag = getFileEtag(photo, user)
         if (!requestEtagOpt.isEmpty && requestEtagOpt.get() == serverEtag) {
             log.info("Photo ${photo.id} requested by user $userIdLong, cached on client side")
 
@@ -94,8 +89,11 @@ class PhotosController @Autowired constructor(
                 .body(null)
         }
 
+        val fileName = photo.getStorePath(user)
+        val file = fileStorageService.resolveFileName(fileName)
+
         // Try to determine file's content type
-        var contentType = try {
+        val contentType = try {
             request.servletContext.getMimeTypeAll(file)
         } catch (e: InvalidMediaTypeException) {
             log.warn("Could not automatically determine file type.", e)
@@ -122,7 +120,7 @@ class PhotosController @Autowired constructor(
             .body(responseBody)
     }
 
-    @PostMapping("/photos/{userId}/upload")
+    @PostMapping("/photos/{userId}")
     fun uploadPhoto(
         @PathVariable userId: String,
         @RequestParam("file") file: MultipartFile,
@@ -157,11 +155,11 @@ class PhotosController @Autowired constructor(
         return photo
     }
 
-    @PostMapping("/photos/{userId}/delete/{photoId}")
+    @GetMapping("/photos/{userId}/delete/{photoId}")
     fun deletePhoto(
         @PathVariable userId: String,
         @PathVariable photoId: String,
-    ): ResponseEntity<Void> {
+    ): Map<String, Boolean> {
         val userIdLong = userId.toLong()
         val photoIdLong = photoId.toLong()
 
@@ -172,16 +170,20 @@ class PhotosController @Autowired constructor(
 
         val path = photo.getStorePath(user)
 
-        if (fileStorageService.existsFile(path)) {
-            if (!fileStorageService.deleteFile(path)) {
-                log.error("Failed to delete file {$path}")
-                throw FileStorageException("Delete operation failed")
-            }
-        } else {
+        log.info("Photo ${photo.id} by user $userIdLong, to be deleted")
+
+        if (!fileStorageService.existsFile(path))
             throw PhotoNotFoundException("There is no such Photo existent on disk")
+
+        if (!fileStorageService.deleteFile(path)) {
+            log.error("Failed to delete file {$path}")
+            throw FileStorageException("Delete operation failed")
         }
 
-        return ResponseEntity.ok().build()
+        photoRepository.delete(photo)
+        log.info("Photo ${photo.id} by user $userIdLong, deleted successfully")
+
+        return mapOf("deleted" to true)
     }
 
     // region Public
@@ -190,7 +192,7 @@ class PhotosController @Autowired constructor(
     fun getPublicPhotosList(): Iterable<Photo> =
         getPhotosList(publicUser.id.toString())
 
-    @PostMapping("/public_photos/make_public/{userId}/{photoId}")
+    @PostMapping("/photos/{userId}/make_public/{photoId}")
     fun makePhotoPublic(
         @PathVariable userId: String,
         @PathVariable photoId: String,
@@ -226,7 +228,7 @@ class PhotosController @Autowired constructor(
         @RequestHeader(IF_NONE_MATCH) requestEtagOpt: Optional<String>,
     ) = downloadPhoto(publicUser.id.toString(), photoId, request, requestEtagOpt)
 
-    @PostMapping("/public_photos/delete/{photoId}")
+    @GetMapping("/public_photos/delete/{photoId}")
     fun deletePublicPhoto(
         @PathVariable photoId: String,
     ) = deletePhoto(publicUser.id.toString(), photoId)

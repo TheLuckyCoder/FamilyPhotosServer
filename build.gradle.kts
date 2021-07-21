@@ -7,7 +7,7 @@ plugins {
 	id("org.springframework.boot") version "2.5.2"
 	id("io.spring.dependency-management") version "1.0.11.RELEASE"
 
-	val kotlinVersion = "1.5.20"
+	val kotlinVersion = "1.5.21"
 	kotlin("jvm") version kotlinVersion
 	kotlin("plugin.spring") version kotlinVersion
 	kotlin("plugin.jpa") version kotlinVersion
@@ -36,7 +36,6 @@ dependencies {
 //	implementation("org.springframework.boot:spring-boot-starter-data-rest")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-web")
-//	implementation("org.springframework.boot:pring-boot-starter-undertow")
 
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
@@ -44,8 +43,6 @@ dependencies {
 	kotlin("kotlin-reflect")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
-
-	implementation("net.coobird:thumbnailator:0.4.14")
 
 	runtimeOnly("com.h2database:h2")
 
