@@ -11,19 +11,18 @@ import net.theluckycoder.familyphotos.configs.SecurityConfiguration
 import net.theluckycoder.familyphotos.extensions.asyncForEach
 import net.theluckycoder.familyphotos.model.Photo
 import net.theluckycoder.familyphotos.model.User
+import net.theluckycoder.familyphotos.repository.PhotoRepository
 import net.theluckycoder.familyphotos.service.FileStorageService
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
 import java.io.File
-import java.io.IOException
-import java.nio.file.Files
-import java.nio.file.attribute.BasicFileAttributeView
-import java.nio.file.attribute.BasicFileAttributes
 import java.text.SimpleDateFormat
 
 @Component
 class StartData @Autowired constructor(
     securityConfiguration: SecurityConfiguration,
+    private val photoRepository: PhotoRepository,
     private val fileStorageService: FileStorageService
 ) {
 
@@ -37,7 +36,7 @@ class StartData @Autowired constructor(
             roles = PUBLIC_ROLE
         ),
         User(displayName = "Răzvan", userName = "razvan", password = getPassword("938pm7hqryrgo"), roles = USER_ROLE),
-        User(displayName = "Rares", userName = "rares", password = getPassword("tu3sq7ptshyi2"), roles = USER_ROLE),
+        User(displayName = "Rareș", userName = "rares", password = getPassword("tu3sq7ptshyi2"), roles = USER_ROLE),
         User(displayName = "Anda", userName = "anda", password = getPassword("7nb9nx84t6n47"), roles = USER_ROLE),
         User(displayName = "Adonis", userName = "adonis", password = getPassword("qpph2t6qzptp9"), roles = USER_ROLE),
     )
@@ -54,10 +53,7 @@ class StartData @Autowired constructor(
                         val folderName = file.parentFile.name
                         val isInSubFolder = folderName != userFolder
 
-                        val creationTimestamp = listOfNotNull(
-                            getJsonDateTime(file),
-                            getRegexDateTime(file)
-                        ).minByOrNull { it }
+                        val creationTimestamp = getJsonDateTime(file) ?: getRegexDateTime(file)
                         if (creationTimestamp == null) {
                             println("No timestamp: ${file.absolutePath}")
                         }
@@ -66,7 +62,9 @@ class StartData @Autowired constructor(
                             ownerUserId = user.id,
                             name = file.name,
                             folder = folderName.takeIf { isInSubFolder },
-                            timeCreated = creationTimestamp ?: System.currentTimeMillis(),
+                            timeCreated = creationTimestamp
+                                ?: photoRepository.findByName(file.name).firstOrNull()?.timeCreated
+                                ?: System.currentTimeMillis(),
                             fileSize = file.length()
                         )
                     }
@@ -85,6 +83,7 @@ class StartData @Autowired constructor(
 
     private val fileDateHourPattern = ".*([0-9]{8}).*([0-9]{6}).*".toPattern()
     private val fileDatePattern = ".*([0-9]{8}).*".toPattern()
+    private val fileMillisPattern = ".*([0-9]{13}).*".toPattern()
     private val dateHourFormatter = SimpleDateFormat("yyyyMMdd HHmmss")
     private val dateFormatter = SimpleDateFormat("yyyyMMdd")
 
@@ -92,6 +91,8 @@ class StartData @Autowired constructor(
         val jsonFileName = file.nameWithoutExtension
             .removeSuffix("-editat").removeSuffix("(1)") + "." + file.extension
         val jsonFile = File(file.parentFile, "$jsonFileName.json")
+
+        if (!jsonFile.exists()) return null
 
         try {
             val content = jsonFile.readText()
@@ -107,14 +108,14 @@ class StartData @Autowired constructor(
                         jParser.nextToken()
                         while (jParser.nextToken() != JsonToken.END_OBJECT) {
                             if ("timestamp" == jParser.currentName)
-                                timestamp = jParser.valueAsLong
+                                timestamp = jParser.valueAsLong * 1000
                         }
                     }
                     "photoTakenTime" -> {
                         jParser.nextToken()
                         while (jParser.nextToken() != JsonToken.END_OBJECT) {
                             if ("timestamp" == jParser.currentName)
-                                photoTaken = jParser.valueAsLong
+                                photoTaken = jParser.valueAsLong * 1000
                         }
                     }
                     else -> if (timestamp != null && photoTaken != null) {
@@ -132,7 +133,7 @@ class StartData @Autowired constructor(
     }
 
     private fun getRegexDateTime(file: File): Long? {
-        return try {
+        try {
             val name = file.nameWithoutExtension
             require(name.length >= 8)
 
@@ -141,18 +142,26 @@ class StartData @Autowired constructor(
                 val date = matcher.group(1)
                 val hour = matcher.group(2)
 
-                dateHourFormatter.parse("$date $hour").time
-            } else {
-                matcher = fileDatePattern.matcher(name)
-                if (matcher.find()) {
-                    val date = matcher.group(1)
+                return dateHourFormatter.parse("$date $hour").time
+            }
 
-                    dateFormatter.parse(date).time
-                } else null
+            matcher = fileMillisPattern.matcher(name)
+            if (matcher.find()) {
+                matcher.group(1)?.toLongOrNull()?.let {
+                    return it
+                }
+            }
+
+            matcher = fileDatePattern.matcher(name)
+            if (matcher.find()) {
+                val date = matcher.group(1)
+
+                // Please forgive me
+                return dateFormatter.parse(date).time.takeIf { it in 2000..2050 }
             }
         } catch (e: Exception) {
-            null
         }
+        return null
     }
 
     private fun getPassword(password: String): String {

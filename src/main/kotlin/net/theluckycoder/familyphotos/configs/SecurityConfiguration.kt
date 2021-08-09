@@ -23,15 +23,15 @@ class SecurityConfiguration @Autowired constructor(
 
     override fun configure(web: WebSecurity) {
         web.ignoring()
-            .antMatchers("/db/**")
+            .antMatchers("/error/**")
     }
 
     override fun configure(http: HttpSecurity) {
         http.antMatcher("/**")
             .authorizeRequests()
-            .antMatchers("/", "db/**").permitAll()
+            .antMatchers("/", "/db/**").permitAll()
             .anyRequest().authenticated()
-            .and().httpBasic()
+            .and().httpBasic().and().csrf().disable()
     }
 
     @Bean

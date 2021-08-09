@@ -21,6 +21,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.InvalidMediaTypeException
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -46,7 +47,7 @@ class PhotosController @Autowired constructor(
     private val etagHeaderFilter = Md5ShallowEtagHeaderFilter()
     private val publicUser by lazy { userRepository.findByUserName(StartData.PUBLIC_USERNAME).get() }
 
-    private val photoEtagMap = ConcurrentHashMap<Long, String>(1024)
+    private val photoEtagMap = ConcurrentHashMap<Long, String>(4096)
     private val cacheControl = CacheControl.empty().cachePrivate().mustRevalidate()
 
     // We assume the photos won't be changed since they can't be right now
@@ -69,7 +70,6 @@ class PhotosController @Autowired constructor(
         request: HttpServletRequest,
         @RequestHeader(IF_NONE_MATCH) requestEtagOpt: Optional<String>,
     ): ResponseEntity<StreamingResponseBody> {
-
         val userIdLong = userId.toLong()
         val photoIdLong = photoId.toLong()
 
@@ -120,21 +120,24 @@ class PhotosController @Autowired constructor(
             .body(responseBody)
     }
 
-    @PostMapping("/photos/{userId}")
+    @PostMapping("/photos/{userId}/upload")
     fun uploadPhoto(
         @PathVariable userId: String,
         @RequestParam("file") file: MultipartFile,
         @RequestParam("timeCreated") timeCreated: String,
+        @RequestParam("folderName", required = false) folderName: String?,
     ): Photo {
         val userIdLong = userId.toLong()
         val timestampCreated = timeCreated.toLong()
         require(timestampCreated > 0) { "Invalid photo creation timestamp" }
         require(file.contentType!!.startsWith("image/")) { "Uploaded file has to be an image or a video" }
 
+        log.info("User $userId uploading photo ${file.name}")
+
         val user = userRepository.findByIdOrThrow(userIdLong)
         val simpleFileName = file.originalFilename!!.substringAfterLast('/')
         val name = simpleFileName.substringBeforeLast('.') +
-                "-${System.currentTimeMillis()}." +
+                "-$timestampCreated." +
                 simpleFileName.substringAfterLast('.')
 
         val photo = photoRepository.save(
@@ -143,6 +146,7 @@ class PhotosController @Autowired constructor(
                 name = name,
                 timeCreated = timestampCreated,
                 fileSize = file.size,
+                folder = folderName
             )
         )
 
@@ -155,7 +159,7 @@ class PhotosController @Autowired constructor(
         return photo
     }
 
-    @GetMapping("/photos/{userId}/delete/{photoId}")
+    @DeleteMapping("/photos/{userId}/delete/{photoId}")
     fun deletePhoto(
         @PathVariable userId: String,
         @PathVariable photoId: String,
@@ -192,33 +196,46 @@ class PhotosController @Autowired constructor(
     fun getPublicPhotosList(): Iterable<Photo> =
         getPhotosList(publicUser.id.toString())
 
-    @PostMapping("/photos/{userId}/make_public/{photoId}")
-    fun makePhotoPublic(
+    @PostMapping("/public_photos/upload")
+    fun uploadPublicPhoto(
+        @RequestParam("file") file: MultipartFile,
+        @RequestParam("timeCreated") timeCreated: String,
+        @RequestParam("folderName", required = false) folderName: String?,
+    ) = uploadPhoto(publicUser.id.toString(), file, timeCreated, folderName)
+
+    @PostMapping("/photos/{userId}/change_location/{photoId}")
+    fun changePhotoLocation(
         @PathVariable userId: String,
         @PathVariable photoId: String,
-    ): ResponseEntity<Void> {
+        @RequestParam("targetUserId") targetUserId: String?,
+        @RequestParam("targetFolderName") targetFolderName: String?,
+    ): Photo {
         val userIdLong = userId.toLong()
         val photoIdLong = photoId.toLong()
+
+        val targetUserIdLong = targetUserId?.toLong() ?: publicUser.id
 
         val user = userRepository.findByIdOrThrow(userIdLong)
         val photo = photoRepository.findByIdOrNull(photoIdLong)
         if (photo == null || photo.ownerUserId != userIdLong)
             throw PhotoNotFoundException("There is no Photo with id $photoId")
 
-        val publicPhoto = photo.copy(
-            ownerUserId = publicUser.id,
+        val changedPhoto = photo.copy(
+            ownerUserId = targetUserIdLong,
+            folder = targetFolderName
         )
 
         val fromFile = photo.getStorePath(user)
-        val toFile = publicPhoto.getStorePath(publicUser)
+        val toFile = changedPhoto.getStorePath(userRepository.findByIdOrThrow(targetUserIdLong))
         if (!fileStorageService.moveFile(fromFile, toFile)) {
             log.error("Failed to move file from {$fromFile} to {$toFile}")
             throw FileStorageException("Move operation failed")
         }
 
-        photoRepository.save(publicPhoto)
+        photoRepository.save(changedPhoto)
+        log.info("Photo $photoId moved from {$fromFile} to {$toFile}")
 
-        return ResponseEntity.ok().build()
+        return changedPhoto
     }
 
     @GetMapping("/public_photos/download/{photoId}")

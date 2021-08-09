@@ -13,6 +13,9 @@ interface PhotoRepository : CrudRepository<Photo, Long> {
     @Query("FROM Photo photo WHERE photo.ownerUserId=:userId ORDER BY photo.timeCreated DESC")
     fun findByUser(@Param("userId") userId: Long): Iterable<Photo>
 
+    @Query("FROM Photo photo WHERE photo.name=:name")
+    fun findByName(@Param("name") name: String): Iterable<Photo>
+
 }
 
 fun PhotoRepository.findByUser(user: User): Iterable<Photo> = findByUser(user.id)

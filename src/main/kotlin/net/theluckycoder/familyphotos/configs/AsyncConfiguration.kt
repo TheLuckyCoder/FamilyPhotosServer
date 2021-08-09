@@ -31,14 +31,15 @@ class AsyncConfiguration : AsyncConfigurer {
     @Bean(name = ["taskExecutor"])
     override fun getAsyncExecutor(): AsyncTaskExecutor {
         log.debug("Creating Async Task Executor")
+
        return ThreadPoolTaskExecutor().apply {
             corePoolSize = 4
             maxPoolSize = 8
-            setQueueCapacity(25)
+            keepAliveSeconds = 120
         }
     }
 
-    override fun getAsyncUncaughtExceptionHandler(): AsyncUncaughtExceptionHandler? =
+    override fun getAsyncUncaughtExceptionHandler(): AsyncUncaughtExceptionHandler =
         SimpleAsyncUncaughtExceptionHandler()
 
     /** Configure async support for Spring MVC.  */
@@ -48,7 +49,7 @@ class AsyncConfiguration : AsyncConfigurer {
         callableProcessingInterceptor: CallableProcessingInterceptor
     ) = object : WebMvcConfigurer {
         override fun configureAsyncSupport(configurer: AsyncSupportConfigurer) {
-            configurer.setDefaultTimeout(360000).setTaskExecutor(taskExecutor)
+            configurer.setDefaultTimeout(20000).setTaskExecutor(taskExecutor)
             configurer.registerCallableInterceptors(callableProcessingInterceptor)
             super.configureAsyncSupport(configurer)
         }
@@ -59,7 +60,7 @@ class AsyncConfiguration : AsyncConfigurer {
         return object : TimeoutCallableProcessingInterceptor() {
             @Throws(Exception::class)
             override fun <T> handleTimeout(request: NativeWebRequest, task: Callable<T>): Any {
-                log.error("timeout!")
+                log.error("Request timed out!")
                 return super.handleTimeout(request, task)
             }
         }
