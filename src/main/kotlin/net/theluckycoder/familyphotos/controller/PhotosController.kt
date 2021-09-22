@@ -32,6 +32,7 @@ import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody
 import java.io.OutputStream
 import java.nio.file.Files
+import java.time.Duration
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import javax.servlet.http.HttpServletRequest
@@ -47,10 +48,10 @@ class PhotosController @Autowired constructor(
     private val etagHeaderFilter = Md5ShallowEtagHeaderFilter()
     private val publicUser by lazy { userRepository.findByUserName(StartData.PUBLIC_USERNAME).get() }
 
-    private val photoEtagMap = ConcurrentHashMap<Long, String>(4096)
-    private val cacheControl = CacheControl.empty().cachePrivate().mustRevalidate()
+    private val photoEtagMap = ConcurrentHashMap<Long, String>(8192)
+    private val cacheControl = CacheControl.empty().cachePrivate().sMaxAge(Duration.ofDays(7L))
 
-    // We assume the photos won't be changed since they can't be right now
+    // We assume the photos will only change between server restarts
     private fun getFileEtag(photo: Photo, user: User): String {
         return photoEtagMap.getOrPut(photo.id) {
             fileStorageService.resolveFileName(photo.getStorePath(user)).inputStream().use {
@@ -87,6 +88,8 @@ class PhotosController @Autowired constructor(
                 .eTag(serverEtag)
                 .cacheControl(cacheControl)
                 .body(null)
+        } else {
+            log.debug("Photo ${photo.id}: Server $serverEtag; Client: ${requestEtagOpt.orElseGet { "null" }}")
         }
 
         val fileName = photo.getStorePath(user)
@@ -107,7 +110,8 @@ class PhotosController @Autowired constructor(
             } catch (_: Exception) {
             }
         }
-        log.info("Photo ${photo.id} requested by user $userIdLong")
+
+        log.info("Photo ${photo.id} requested by user ${user.userName}")
 
         return ResponseEntity.ok()
             .contentType(MediaType.parseMediaType(contentType))
@@ -132,9 +136,10 @@ class PhotosController @Autowired constructor(
         require(timestampCreated > 0) { "Invalid photo creation timestamp" }
         require(file.contentType!!.startsWith("image/")) { "Uploaded file has to be an image or a video" }
 
-        log.info("User $userId uploading photo ${file.name}")
-
         val user = userRepository.findByIdOrThrow(userIdLong)
+
+        log.info("User ${user.userName} uploading photo ${file.name}")
+
         val simpleFileName = file.originalFilename!!.substringAfterLast('/')
         val name = simpleFileName.substringBeforeLast('.') +
                 "-$timestampCreated." +
@@ -174,7 +179,7 @@ class PhotosController @Autowired constructor(
 
         val path = photo.getStorePath(user)
 
-        log.info("Photo ${photo.id} by user $userIdLong, to be deleted")
+        log.info("Photo ${photo.id} by user ${user.userName}, to be deleted")
 
         if (!fileStorageService.existsFile(path))
             throw PhotoNotFoundException("There is no such Photo existent on disk")
@@ -185,7 +190,7 @@ class PhotosController @Autowired constructor(
         }
 
         photoRepository.delete(photo)
-        log.info("Photo ${photo.id} by user $userIdLong, deleted successfully")
+        log.info("Photo ${photo.id} by user ${user.userName}, deleted successfully")
 
         return mapOf("deleted" to true)
     }
