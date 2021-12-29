@@ -30,7 +30,9 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody
+import java.awt.PageAttributes
 import java.io.OutputStream
+import java.net.http.HttpHeaders
 import java.nio.file.Files
 import java.time.Duration
 import java.util.*
@@ -114,7 +116,7 @@ class PhotosController @Autowired constructor(
         log.info("Photo ${photo.id} requested by user ${user.userName}")
 
         return ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType(contentType))
+            .contentType(PageAttributes.MediaType.parseMediaType(contentType))
             .header(
                 HttpHeaders.CONTENT_DISPOSITION,
                 "attachment; filename=\"${file.name}\""
@@ -134,7 +136,9 @@ class PhotosController @Autowired constructor(
         val userIdLong = userId.toLong()
         val timestampCreated = timeCreated.toLong()
         require(timestampCreated > 0) { "Invalid photo creation timestamp" }
-        require(file.contentType!!.startsWith("image/")) { "Uploaded file has to be an image or a video" }
+
+        val mimeType = file.contentType ?: ""
+        require(mimeType.startsWith("image/") || mimeType.startsWith("video/")) { "Uploaded file has to be an image or a video" }
 
         val user = userRepository.findByIdOrThrow(userIdLong)
 

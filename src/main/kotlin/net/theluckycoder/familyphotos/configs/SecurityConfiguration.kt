@@ -27,7 +27,7 @@ class SecurityConfiguration @Autowired constructor(
     }
 
     override fun configure(http: HttpSecurity) {
-        http.antMatcher("/**")
+        http.requiresChannel().anyRequest().requiresSecure().and()
             .authorizeRequests()
             .antMatchers("/", "/db/**").permitAll()
             .anyRequest().authenticated()

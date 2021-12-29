@@ -7,7 +7,7 @@ plugins {
 	id("org.springframework.boot") version "2.6.2"
 	id("io.spring.dependency-management") version "1.0.11.RELEASE"
 
-	val kotlinVersion = "1.5.31"
+	val kotlinVersion = "1.6.10"
 	kotlin("jvm") version kotlinVersion
 	kotlin("plugin.spring") version kotlinVersion
 	kotlin("plugin.jpa") version kotlinVersion
@@ -41,8 +41,7 @@ dependencies {
 
 	kotlin("kotlin-stdlib-jdk8")
 	kotlin("kotlin-reflect")
-	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.2")
-	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.5.2")
+	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.6.0")
 
 	runtimeOnly("com.h2database:h2")
 
