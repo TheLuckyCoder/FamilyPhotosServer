@@ -32,7 +32,6 @@ import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody
 import java.awt.PageAttributes
 import java.io.OutputStream
-import java.net.http.HttpHeaders
 import java.nio.file.Files
 import java.time.Duration
 import java.util.*
@@ -116,7 +115,7 @@ class PhotosController @Autowired constructor(
         log.info("Photo ${photo.id} requested by user ${user.userName}")
 
         return ResponseEntity.ok()
-            .contentType(PageAttributes.MediaType.parseMediaType(contentType))
+            .contentType(MediaType.parseMediaType(contentType))
             .header(
                 HttpHeaders.CONTENT_DISPOSITION,
                 "attachment; filename=\"${file.name}\""
