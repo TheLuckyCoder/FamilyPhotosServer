@@ -14,7 +14,7 @@ plugins {
 //	id("org.springframework.experimental.aot") version "0.10.0"
 //	id("org.graalvm.buildtools.native") version "0.9.0"
 
-	id("com.github.ben-manes.versions") version "0.39.0"
+	id("com.github.ben-manes.versions") version "0.40.0"
 }
 
 group = "net.theluckycoder"
