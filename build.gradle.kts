@@ -41,7 +41,7 @@ dependencies {
 
 	kotlin("kotlin-stdlib-jdk8")
 	kotlin("kotlin-reflect")
-	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.6.1")
+	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.6.2")
 
 	runtimeOnly("com.h2database:h2")
 
