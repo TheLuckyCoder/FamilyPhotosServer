@@ -19,7 +19,7 @@ plugins {
 
 group = "net.theluckycoder"
 version = "0.0.1"
-java.sourceCompatibility = JavaVersion.VERSION_16
+java.sourceCompatibility = JavaVersion.VERSION_17
 
 repositories {
 	maven { url = uri("https://repo.spring.io/release") }
@@ -33,7 +33,6 @@ repositories {
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-//	implementation("org.springframework.boot:spring-boot-starter-data-rest")
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-web")
 
@@ -52,7 +51,7 @@ dependencies {
 tasks.withType<KotlinCompile> {
 	kotlinOptions {
 		freeCompilerArgs = listOf("-Xjsr305=strict", "-Xopt-in=kotlin.RequiresOptIn")
-		jvmTarget = "16"
+		jvmTarget = "17"
 	}
 }
 

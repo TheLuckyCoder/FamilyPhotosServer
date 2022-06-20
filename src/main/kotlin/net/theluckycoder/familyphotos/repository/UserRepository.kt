@@ -15,5 +15,5 @@ interface UserRepository : CrudRepository<User, Long> {
     fun findByUserName(@Param("name") userName: String): Optional<User>
 }
 
-fun UserRepository.findByIdOrThrow(userId: Long) =
+fun UserRepository.findByIdOrThrow(userId: Long): User =
     findById(userId).orElseThrow { UserNotFoundException("There is no User with id $userId") }
