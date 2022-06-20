@@ -42,7 +42,7 @@ dependencies {
 	kotlin("kotlin-reflect")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.6.2")
 
-	runtimeOnly("com.h2database:h2:1.4.200")
+	runtimeOnly("com.h2database:h2:2.1.214")
 
 //	testImplementation("org.springframework.boot:spring-boot-starter-test")
 //	testImplementation("org.springframework.security:spring-security-test")
