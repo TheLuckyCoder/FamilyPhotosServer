@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody
 import java.awt.PageAttributes
+import java.io.File
 import java.io.OutputStream
 import java.nio.file.Files
 import java.time.Duration
@@ -235,6 +236,7 @@ class PhotosController @Autowired constructor(
 
         val fromFile = photo.getStorePath(user)
         val toFile = changedPhoto.getStorePath(userRepository.findByIdOrThrow(targetUserIdLong))
+        File(toFile).parentFile?.mkdir()
         if (!fileStorageService.moveFile(fromFile, toFile)) {
             log.error("Failed to move file from {$fromFile} to {$toFile}")
             throw FileStorageException("Move operation failed")
