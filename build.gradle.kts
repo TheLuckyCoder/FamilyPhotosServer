@@ -4,7 +4,7 @@ import org.jetbrains.kotlin.kapt3.base.Kapt.kapt
 //import org.springframework.boot.gradle.tasks.bundling.BootBuildImage
 
 plugins {
-	id("org.springframework.boot") version "2.7.1"
+	id("org.springframework.boot") version "2.7.2"
 	id("io.spring.dependency-management") version "1.0.12.RELEASE"
 
 	val kotlinVersion = "1.7.10"
