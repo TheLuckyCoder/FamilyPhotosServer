@@ -4,21 +4,19 @@ use crate::schema::users;
 
 #[derive(Debug, Clone, PartialEq, Eq, Queryable, Insertable, Deserialize)]
 #[diesel(table_name = users)]
+#[serde(rename_all = "camelCase")]
 pub struct User {
     pub id: i64,
-    #[serde(rename = "displayName")]
     pub display_name: String,
-    #[serde(rename = "userName")]
     pub user_name: String,
     pub password: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SimpleUser {
     pub id: i64,
-    #[serde(rename = "displayName")]
     pub display_name: String,
-    #[serde(rename = "userName")]
     pub user_name: String,
 }
 
