@@ -14,13 +14,17 @@ use rand::prelude::*;
 use rand_hc::Hc128Rng;
 
 use crate::api::home::ping;
-use crate::api::photos::{change_photo_location, delete_photo, download_photo, photos_list, public_delete_photo, public_download_photo, public_photos_list, public_upload_photo, upload_photo};
+use crate::api::photos::{
+    change_photo_location, delete_photo, download_photo, photos_list,
+    public_delete_photo, public_download_photo, public_photos_list,
+    public_upload_photo, upload_photo,
+};
 use crate::api::users::{create_user, get_user, get_users};
 use crate::db::DbActor;
 use crate::db::users::GetUsers;
 use crate::model::user::User;
 use crate::utils::AppState;
-use crate::utils::data_init::DataInit;
+use crate::utils::data_scan::DataScan;
 use crate::utils::db_utils::get_pool;
 use crate::utils::file_storage::FileStorage;
 
@@ -70,7 +74,8 @@ async fn main() -> std::io::Result<()> {
         storage: FileStorage::new(storage_path.clone()),
     };
 
-    DataInit::start(&app_state).await?;
+    let data_scan = DataScan::scan(&app_state).await;
+    data_scan.update_database(&app_state).await;
 
     {
         let mut users: Vec<User> = match manager.send(GetUsers).await {

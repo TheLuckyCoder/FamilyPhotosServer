@@ -17,7 +17,6 @@ use crate::model::photo::{Photo, PhotoBody};
 use crate::model::user::User;
 
 const PUBLIC_USER_ID: i64 = 0;
-const PUBLIC_USER_NAME: &str = "public";
 
 async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> impl Responder {
     let db = state.db.clone();
@@ -33,14 +32,15 @@ async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> i
         _ => return HttpResponse::InternalServerError().json("Something went wrong"),
     };
 
-    let photo_path = photo.partial_photo_path(&user).expect("Photo does not belong to this user do not match");
+    let photo_path = photo.partial_path(&user).expect("Photo does not belong to this user do not match");
     let file = File::open(storage.resolve(photo_path))
         .expect("Could not open photo");
 
     let (tx, rx) = local_channel::mpsc::channel::<Result<Bytes, Error>>();
     actix_web::rt::spawn(async move {
-        let mut reader = BufReader::with_capacity(8192, file);
-        let mut buf = [0u8; 8192];
+        const CAPACITY: usize = 8192 * 2;
+        let mut reader = BufReader::with_capacity(CAPACITY, file);
+        let mut buf = [0u8; 8192 * 2];
 
         while reader.read_exact(&mut buf).is_ok() {
             if tx.send(Ok(Bytes::copy_from_slice(&buf))).is_err() {
@@ -50,69 +50,6 @@ async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> i
     });
 
     HttpResponse::Ok().streaming(rx)
-}
-
-async fn base_delete_photo(state: &AppState, user_id: i64, photo_id: i64) -> impl Responder {
-    let db = state.db.clone();
-    let storage = state.storage.borrow();
-
-    let user: User = match db.send(GetUser::Id(user_id)).await {
-        Ok(Ok(user)) => user,
-        _ => return HttpResponse::BadRequest().json("Invalid user id")
-    };
-
-    let photo: Photo = match db.send(GetPhoto { id: photo_id }).await {
-        Ok(Ok(photo)) => photo,
-        _ => return HttpResponse::InternalServerError().json("Something went wrong"),
-    };
-
-    if storage.delete_file(photo.partial_photo_path(&user).expect("Photo does not belong to this user")) {
-        match db.send(DeletePhoto { id: photo_id }).await {
-            Ok(Ok(_count)) => HttpResponse::Ok().json("{\"deleted\": true}"),
-            _ => HttpResponse::InternalServerError().json("Failed to remove photo from database"),
-        }
-    } else {
-        HttpResponse::InternalServerError().json("File could not be deleted")
-    }
-}
-
-// region Specific User
-
-#[get("/{user_id}")]
-pub async fn photos_list(state: Data<AppState>, user_id: Path<i64>) -> impl Responder {
-    let db = state.get_ref().db.clone();
-
-    match db.send(GetPhotos { owner: user_id.into_inner() }).await {
-        Ok(Ok(photos)) => HttpResponse::Ok().json(photos),
-        _ => HttpResponse::InternalServerError().json("Something went wrong")
-    }
-}
-
-#[get("/{user_id}/download/{photo_id}")]
-pub async fn download_photo(
-    state: Data<AppState>,
-    user_id: Path<i64>,
-    photo_id: Path<i64>,
-) -> impl Responder {
-    base_download_photo(state.get_ref(), user_id.into_inner(), photo_id.into_inner()).await
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UploadData {
-    #[serde(rename = "timeCreated", with = "ts_milliseconds")]
-    time_created: chrono::NaiveDateTime,
-    #[serde(rename = "folderName")]
-    folder_name: Option<String>,
-}
-
-#[post("/{user_id_path}/upload")]
-pub async fn upload_photo(
-    state: Data<AppState>,
-    user_id_path: Path<i64>,
-    query: Query<UploadData>,
-    payload: Multipart,
-) -> impl Responder {
-    base_upload_photo(state.get_ref(), user_id_path.into_inner(), query.0, payload).await
 }
 
 async fn base_upload_photo(state: &AppState, user_id: i64, query: UploadData, mut payload: Multipart) -> Result<HttpResponse, Error> {
@@ -146,7 +83,7 @@ async fn base_upload_photo(state: &AppState, user_id: i64, query: UploadData, mu
             Some(folder) => folder + "/"
         };
 
-        let filepath = storage.resolve(format!("photos/{}/{}{}", user.user_name, folder, file_name));
+        let filepath = storage.resolve(format!("{}/{}{}", user.user_name, folder, file_name));
         println!("Uploading file to {}", filepath.to_string_lossy());
 
         // File::create is blocking operation, use thread pool
@@ -171,6 +108,69 @@ async fn base_upload_photo(state: &AppState, user_id: i64, query: UploadData, mu
     }
 }
 
+async fn base_delete_photo(state: &AppState, user_id: i64, photo_id: i64) -> impl Responder {
+    let db = state.db.clone();
+    let storage = state.storage.borrow();
+
+    let user: User = match db.send(GetUser::Id(user_id)).await {
+        Ok(Ok(user)) => user,
+        _ => return HttpResponse::BadRequest().json("Invalid user id")
+    };
+
+    let photo: Photo = match db.send(GetPhoto { id: photo_id }).await {
+        Ok(Ok(photo)) => photo,
+        _ => return HttpResponse::InternalServerError().json("Something went wrong"),
+    };
+
+    if storage.delete_file(photo.partial_path(&user).expect("Photo does not belong to this user")) {
+        match db.send(DeletePhoto { id: photo_id }).await {
+            Ok(Ok(_count)) => HttpResponse::Ok().json("{\"deleted\": true}"),
+            _ => HttpResponse::InternalServerError().json("Failed to remove photo from database"),
+        }
+    } else {
+        HttpResponse::InternalServerError().json("File could not be deleted")
+    }
+}
+
+// region Specific User
+
+#[get("/{user_id}")]
+pub async fn photos_list(state: Data<AppState>, user_id: Path<i64>) -> impl Responder {
+    let db = state.get_ref().db.clone();
+
+    match db.send(GetPhotos::Owner(user_id.into_inner())).await {
+        Ok(Ok(photos)) => HttpResponse::Ok().json(photos),
+        _ => HttpResponse::InternalServerError().json("Something went wrong")
+    }
+}
+
+#[get("/{user_id}/download/{photo_id}")]
+pub async fn download_photo(
+    state: Data<AppState>,
+    user_id: Path<i64>,
+    photo_id: Path<i64>,
+) -> impl Responder {
+    base_download_photo(state.get_ref(), user_id.into_inner(), photo_id.into_inner()).await
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UploadData {
+    #[serde(with = "ts_milliseconds")]
+    time_created: chrono::NaiveDateTime,
+    folder_name: Option<String>,
+}
+
+#[post("/{user_id_path}/upload")]
+pub async fn upload_photo(
+    state: Data<AppState>,
+    user_id_path: Path<i64>,
+    query: Query<UploadData>,
+    payload: Multipart,
+) -> impl Responder {
+    base_upload_photo(state.get_ref(), user_id_path.into_inner(), query.0, payload).await
+}
+
 #[delete("/{user_id}/delete/{photo_id}")]
 pub async fn delete_photo(
     state: Data<AppState>,
@@ -181,10 +181,9 @@ pub async fn delete_photo(
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChangeLocationQuery {
-    #[serde(rename = "targetUserId")]
     target_user_id: i64,
-    #[serde(rename = "targetFolderName")]
     target_folder_name: Option<String>,
 }
 
@@ -217,14 +216,14 @@ pub async fn change_photo_location(
         new
     };
 
-    storage.move_file(photo.partial_photo_path(&user).unwrap(), changed_photo.partial_photo_path(&user).unwrap());
+    storage.move_file(photo.partial_path(&user).unwrap(), changed_photo.partial_path(&user).unwrap());
 
     match db.send(UpdatePhoto(changed_photo)).await {
         Ok(Ok(_)) => {}
         _ => return HttpResponse::InternalServerError().json("Something went wrong"),
     };
 
-    if storage.delete_file(photo.partial_photo_path(&user).expect("Photo does not belong to user")) {
+    if storage.delete_file(photo.partial_path(&user).expect("Photo does not belong to user")) {
         HttpResponse::Ok().json("{\"deleted\": true}")
     } else {
         HttpResponse::InternalServerError().json("File could not be deleted")
@@ -239,7 +238,7 @@ pub async fn change_photo_location(
 pub async fn public_photos_list(state: Data<AppState>) -> impl Responder {
     let db = state.get_ref().db.clone();
 
-    match db.send(GetPhotos { owner: PUBLIC_USER_ID }).await {
+    match db.send(GetPhotos::Owner(PUBLIC_USER_ID)).await {
         Ok(Ok(photos)) => HttpResponse::Ok().json(photos),
         _ => HttpResponse::InternalServerError().json("Something went wrong")
     }

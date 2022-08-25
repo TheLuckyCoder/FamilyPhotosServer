@@ -7,13 +7,13 @@ use crate::schema::photos;
 
 #[derive(Debug, Clone, PartialEq, Eq, Identifiable, AsChangeset, Queryable, Insertable, Serialize, Deserialize)]
 #[diesel(table_name = photos, treat_none_as_null = true)]
+#[serde(rename_all = "camelCase")]
 pub struct Photo {
     pub id: i64,
     pub owner: i64,
     pub name: String,
-    #[serde(rename = "timeCreated", with = "ts_milliseconds")]
+    #[serde(with = "ts_milliseconds")]
     pub time_created: chrono::NaiveDateTime,
-    #[serde(rename = "fileSize")]
     pub file_size: i64,
     pub folder: Option<String>,
 }
@@ -28,16 +28,20 @@ pub struct PhotoBody {
 }
 
 impl Photo {
-    pub fn partial_photo_path(&self, user: &User) -> Result<String, String> {
-        if self.owner != user.id {
-            return Err("Photo owner does not match user id".to_string());
-        }
-
-        let folder = match self.folder.clone() {
+    pub fn full_name(&self) -> String {
+        let folder_path = match self.folder.clone() {
             None => String::new(),
             Some(folder) => folder + "/"
         };
 
-        Ok(format!("photos/{}/{}{}", user.user_name, folder, self.name))
+        folder_path + self.name.as_str()
+    }
+
+    pub fn partial_path(&self, user: &User) -> Result<String, String> {
+        if self.owner != user.id {
+            return Err("Photo owner does not match user id".to_string());
+        }
+
+        Ok(format!("{}/{}", user.user_name, self.full_name()))
     }
 }
