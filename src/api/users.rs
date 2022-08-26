@@ -8,7 +8,7 @@ use crate::utils::password_hash::get_hash_from_password;
 
 // region Public
 
-#[get("/users")]
+#[get("")]
 pub async fn get_users(state: Data<AppState>) -> impl Responder {
     let db = state.get_ref().db.clone();
 
@@ -24,7 +24,7 @@ pub async fn get_users(state: Data<AppState>) -> impl Responder {
     }
 }
 
-#[get("/user/{name}")]
+#[get("/{name}")]
 pub async fn get_user(state: Data<AppState>, name: Path<String>) -> impl Responder {
     let db = state.get_ref().db.clone();
 
@@ -37,7 +37,7 @@ pub async fn get_user(state: Data<AppState>, name: Path<String>) -> impl Respond
     }
 }
 
-#[post("/user")]
+#[post("")]
 pub async fn create_user(state: Data<AppState>, user: web::Json<User>) -> impl Responder {
     let db = state.get_ref().db.clone();
 
