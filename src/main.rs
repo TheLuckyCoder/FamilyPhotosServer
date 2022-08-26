@@ -2,6 +2,7 @@
 extern crate diesel;
 
 use std::sync::Mutex;
+use std::time::Instant;
 
 use actix::SyncArbiter;
 use actix_web::{App, dev::ServiceRequest, Error, HttpServer, middleware, web};
@@ -78,8 +79,12 @@ async fn main() -> std::io::Result<()> {
         storage: FileStorage::new(storage_path.clone()),
     };
 
-    let data_scan = DataScan::scan(&app_state).await;
-    data_scan.update_database(&app_state).await;
+    {
+        let instant = Instant::now();
+        let data_scan = DataScan::scan(&app_state).await;
+        data_scan.update_database(&app_state).await;
+        println!("Photos scanning completed in {} seconds", instant.elapsed().as_secs());
+    }
 
     {
         let mut users: Vec<User> = match manager.send(GetUsers).await {
@@ -90,7 +95,7 @@ async fn main() -> std::io::Result<()> {
     }
 
     HttpServer::new(move || {
-        let logger = Logger::new(r#"%a %s %b "%{Referer}i" "%{User-Agent}i" %T"#);
+        let logger = Logger::new(r#"%r %s %b "%{Referer}i" "%{User-Agent}i" %T"#);
         let auth = HttpAuthentication::basic(any_user_auth_validator);
 
         App::new()
@@ -99,7 +104,7 @@ async fn main() -> std::io::Result<()> {
             .service(ping)
             .service(create_user)
             .service(
-                web::scope("")
+                web::scope("/user")
                     .wrap(auth.clone())
                     .service(get_user)
                     .service(get_users)
@@ -114,7 +119,7 @@ async fn main() -> std::io::Result<()> {
                     .service(change_photo_location)
             )
             .service(
-                web::scope("/public_photos")
+                    web::scope("/public_photos")
                     .wrap(auth)
                     .service(public_photos_list)
                     .service(public_download_photo)

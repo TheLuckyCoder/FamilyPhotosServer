@@ -68,7 +68,7 @@ async fn base_upload_photo(state: &AppState, user_id: i64, query: UploadData, mu
         let content_disposition = field.content_disposition();
 
         let file_name = content_disposition
-            .get_filename().unwrap_or(content_disposition.get_name().unwrap());
+            .get_filename().unwrap_or_else(|| content_disposition.get_name().unwrap());
 
         new_photo = Some(PhotoBody {
             owner: user_id,
@@ -261,7 +261,7 @@ pub async fn public_upload_photo(
     base_upload_photo(state.get_ref(), PUBLIC_USER_ID, query.into_inner(), payload).await
 }
 
-#[delete("/download/{photo_id}")]
+#[delete("/delete/{photo_id}")]
 pub async fn public_delete_photo(
     state: Data<AppState>,
     photo_id: Path<i64>,
