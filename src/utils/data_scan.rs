@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::cmp::min;
+use std::ffi::OsStr;
 use std::fs;
 use std::io::BufReader;
 use std::path::Path;
@@ -54,13 +55,14 @@ impl DataScan {
                                 continue;
                             }
                             let entry = result.unwrap();
-                            if entry.path().is_dir() {
+                            let path = entry.path();
+                            if path.is_dir() || path.extension() == Some(OsStr::new("json")) {
                                 continue;
                             }
 
                             println!("{:?}", entry);
-                            let timestamp = Self::get_json_timestamp(entry.path())
-                                .map_or_else(|_| Self::get_exif_timestamp(entry.path()),
+                            let timestamp = Self::get_json_timestamp(path)
+                                .map_or_else(|_| Self::get_exif_timestamp(path),
                                              |t| Some(NaiveDateTime::from_timestamp(t as i64, 0))); // Seconds
 
                             if timestamp.is_none() {
@@ -73,9 +75,9 @@ impl DataScan {
                                 owner: user.id,
                                 name: entry.file_name().to_string_lossy().to_string(),
                                 time_created: timestamp.unwrap(),
-                                file_size: fs::metadata(entry.path()).map_or(0i64, |data| data.len() as i64),
+                                file_size: fs::metadata(path).map_or(0i64, |data| data.len() as i64),
                                 folder: if entry.depth() == 2 {
-                                    Some(entry.path().parent().unwrap().file_name().unwrap().to_string_lossy().to_string())
+                                    Some(path.parent().unwrap().file_name().unwrap().to_string_lossy().to_string())
                                 } else { None },
                             })
                         }
