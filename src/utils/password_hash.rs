@@ -1,4 +1,3 @@
-use std::str::from_utf8;
 use sha2::{Digest, Sha512};
 
 pub fn get_hash_from_password(password: &String) -> String {
@@ -10,5 +9,5 @@ pub fn get_hash_from_password(password: &String) -> String {
     hasher.update(input.as_bytes());
 
     let array = hasher.finalize().to_vec();
-    from_utf8(&*array).unwrap().to_string()
+    base64::encode(array)
 }
