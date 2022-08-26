@@ -157,12 +157,9 @@ pub async fn photos_list(state: Data<AppState>, user_id: Path<i64>) -> impl Resp
 }
 
 #[get("/{user_id}/download/{photo_id}")]
-pub async fn download_photo(
-    state: Data<AppState>,
-    user_id: Path<i64>,
-    photo_id: Path<i64>,
-) -> impl Responder {
-    base_download_photo(state.get_ref(), user_id.into_inner(), photo_id.into_inner()).await
+pub async fn download_photo(state: Data<AppState>, path: Path<(i64, i64)>) -> impl Responder {
+    let (user_id, photo_id) = path.into_inner();
+    base_download_photo(state.get_ref(), user_id, photo_id).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -184,12 +181,9 @@ pub async fn upload_photo(
 }
 
 #[delete("/{user_id}/delete/{photo_id}")]
-pub async fn delete_photo(
-    state: Data<AppState>,
-    user_id: Path<i64>,
-    photo_id: Path<i64>,
-) -> impl Responder {
-    base_delete_photo(state.get_ref(), user_id.into_inner(), photo_id.into_inner()).await
+pub async fn delete_photo(state: Data<AppState>, path: Path<(i64, i64)>) -> impl Responder {
+    let (user_id, photo_id) = path.into_inner();
+    base_delete_photo(state.get_ref(), user_id, photo_id).await
 }
 
 #[derive(Deserialize)]
@@ -202,14 +196,12 @@ pub struct ChangeLocationQuery {
 #[post("/{user_id_path}/change_location/{photo_id_path}")]
 pub async fn change_photo_location(
     state: Data<AppState>,
-    user_id_path: Path<i64>,
-    photo_id_path: Path<i64>,
+    path: Path<(i64, i64)>,
     query: Query<ChangeLocationQuery>,
 ) -> impl Responder {
     let db = state.get_ref().db.clone();
     let storage = state.get_ref().storage.borrow();
-    let user_id = user_id_path.into_inner();
-    let photo_id = photo_id_path.into_inner();
+    let (user_id, photo_id) = path.into_inner();
 
     let user = match db.send(GetUser::Id(user_id)).await {
         Ok(Ok(user)) => user,
