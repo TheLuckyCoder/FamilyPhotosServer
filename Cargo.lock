@@ -573,6 +573,7 @@ dependencies = [
  "actix-multipart",
  "actix-web",
  "actix-web-httpauth",
+ "base64",
  "chrono",
  "diesel",
  "dotenv",
