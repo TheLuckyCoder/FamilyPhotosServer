@@ -11,14 +11,13 @@ impl FileStorage {
         let base_path = Path::new(path.as_str()).to_owned();
 
         if !base_path.exists() {
-            fs::create_dir_all(base_path.as_path()).expect("Could not create the base storage path");
+            fs::create_dir_all(base_path.as_path())
+                .expect("Could not create the base storage path");
         } else {
             assert!(base_path.is_dir());
         }
 
-        FileStorage {
-            base_path
-        }
+        FileStorage { base_path }
     }
 
     pub fn resolve<P: AsRef<Path>>(&self, relative: P) -> PathBuf {

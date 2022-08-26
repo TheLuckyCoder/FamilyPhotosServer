@@ -2,9 +2,9 @@ use actix::{Handler, Message};
 use diesel::prelude::*;
 use rand::prelude::*;
 
-use crate::DbActor;
 use crate::model::photo::{Photo, PhotoBody};
 use crate::schema::photos::dsl::{id, owner, photos};
+use crate::DbActor;
 
 #[derive(Message)]
 #[rtype(result = "QueryResult<Vec<Photo>>")]
@@ -51,8 +51,9 @@ impl Handler<GetPhotos> for DbActor {
 
         match msg {
             GetPhotos::All => photos.get_results::<Photo>(&mut conn),
-            GetPhotos::Owner(owner_id) =>
-                photos.filter(owner.eq(owner_id)).get_results::<Photo>(&mut conn)
+            GetPhotos::Owner(owner_id) => photos
+                .filter(owner.eq(owner_id))
+                .get_results::<Photo>(&mut conn),
         }
     }
 }
@@ -98,16 +99,18 @@ impl Handler<CreatePhotos> for DbActor {
     fn handle(&mut self, msg: CreatePhotos, _: &mut Self::Context) -> Self::Result {
         let rng = &mut self.1.lock().unwrap();
 
-        let new_photos = msg.0.into_iter().map(|body| {
-            Photo {
+        let new_photos = msg
+            .0
+            .into_iter()
+            .map(|body| Photo {
                 id: rng.gen::<i64>(),
                 owner: body.owner,
                 name: body.name,
                 time_created: body.time_created,
                 file_size: body.file_size,
                 folder: body.folder,
-            }
-        }).collect::<Vec<Photo>>();
+            })
+            .collect::<Vec<Photo>>();
 
         let mut conn = self.0.get().expect("Unable to get a connection");
 

@@ -1,9 +1,9 @@
 use actix::{Handler, Message};
 use diesel::prelude::*;
 
-use crate::DbActor;
 use crate::model::user::User;
-use crate::schema::users::dsl::{user_name, id, users};
+use crate::schema::users::dsl::{id, user_name, users};
+use crate::DbActor;
 
 #[derive(Message)]
 #[rtype(result = "QueryResult<User>")]
@@ -32,7 +32,6 @@ impl Handler<CreateUser> for DbActor {
     }
 }
 
-
 impl Handler<GetUsers> for DbActor {
     type Result = QueryResult<Vec<User>>;
 
@@ -50,7 +49,9 @@ impl Handler<GetUser> for DbActor {
 
         match msg {
             GetUser::Id(user_id) => users.filter(id.eq(user_id)).get_result::<User>(&mut conn),
-            GetUser::UserName(name) => users.filter(user_name.eq(name)).get_result::<User>(&mut conn)
+            GetUser::UserName(name) => users
+                .filter(user_name.eq(name))
+                .get_result::<User>(&mut conn),
         }
     }
 }

@@ -1,8 +1,8 @@
 use crate::utils::file_storage::FileStorage;
 
+pub mod data_scan;
 pub mod db;
 pub mod file_storage;
-pub mod data_scan;
 pub mod password_hash;
 
 #[derive(Clone)]
