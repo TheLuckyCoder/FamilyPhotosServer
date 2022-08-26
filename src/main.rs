@@ -25,8 +25,9 @@ use crate::db::users::GetUsers;
 use crate::model::user::User;
 use crate::utils::AppState;
 use crate::utils::data_scan::DataScan;
-use crate::utils::db_utils::get_pool;
+use crate::utils::db::get_pool;
 use crate::utils::file_storage::FileStorage;
+use crate::utils::password_hash::get_hash_from_password;
 
 mod db;
 mod model;
@@ -40,10 +41,13 @@ async fn any_user_auth_validator(
     req: ServiceRequest,
     credentials: basic::BasicAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    match unsafe { USERS.clone() }.iter().find(|user| user.user_name == credentials.user_id()) {
+    match unsafe { USERS.clone() }.iter()
+        .find(|user| user.user_name == credentials.user_id()) {
         Some(user) => {
-            if Some(user.password.as_str()) == credentials.password() {
-                return Ok(req);
+            if let Some(password) = credentials.password() {
+                if get_hash_from_password(&password.to_string()) == user.password {
+                    return Ok(req);
+                }
             }
         }
         None => {}
