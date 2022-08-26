@@ -1,6 +1,6 @@
+use crate::schema::users;
 use diesel::{Insertable, Queryable};
 use serde::{Deserialize, Serialize};
-use crate::schema::users;
 
 #[derive(Debug, Clone, PartialEq, Eq, Queryable, Insertable, Deserialize)]
 #[diesel(table_name = users)]

@@ -1,3 +1,3 @@
-pub mod users;
-pub mod photos;
 pub mod home;
+pub mod photos;
+pub mod users;

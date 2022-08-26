@@ -5,7 +5,18 @@ use serde::{Deserialize, Serialize};
 use crate::model::user::User;
 use crate::schema::photos;
 
-#[derive(Debug, Clone, PartialEq, Eq, Identifiable, AsChangeset, Queryable, Insertable, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Identifiable,
+    AsChangeset,
+    Queryable,
+    Insertable,
+    Serialize,
+    Deserialize,
+)]
 #[diesel(table_name = photos, treat_none_as_null = true)]
 #[serde(rename_all = "camelCase")]
 pub struct Photo {
@@ -31,7 +42,7 @@ impl Photo {
     pub fn full_name(&self) -> String {
         let folder_path = match self.folder.clone() {
             None => String::new(),
-            Some(folder) => folder + "/"
+            Some(folder) => folder + "/",
         };
 
         folder_path + self.name.as_str()

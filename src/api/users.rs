@@ -1,10 +1,10 @@
-use actix_web::{get, HttpResponse, post, Responder, web, web::Path};
 use actix_web::web::Data;
+use actix_web::{get, post, web, web::Path, HttpResponse, Responder};
 
-use crate::AppState;
 use crate::db::users::{CreateUser, GetUser, GetUsers};
 use crate::model::user::{SimpleUser, User};
 use crate::utils::password_hash::get_hash_from_password;
+use crate::AppState;
 
 // region Public
 
@@ -14,17 +14,18 @@ pub async fn get_users(state: Data<AppState>) -> impl Responder {
 
     match db.send(GetUsers).await {
         Ok(Ok(users)) => {
-            let result = users.into_iter().map(|value| {
-                SimpleUser::from_user(&value)
-            }).collect::<Vec<SimpleUser>>();
+            let result = users
+                .into_iter()
+                .map(|value| SimpleUser::from_user(&value))
+                .collect::<Vec<SimpleUser>>();
 
             HttpResponse::Ok().json(result)
         }
-        _ => HttpResponse::InternalServerError().json("Something went wrong")
+        _ => HttpResponse::InternalServerError().json("Something went wrong"),
     }
 }
 
-#[get("/{name}")]
+#[get("/name/{name}")]
 pub async fn get_user(state: Data<AppState>, name: Path<String>) -> impl Responder {
     let db = state.get_ref().db.clone();
 
@@ -33,7 +34,7 @@ pub async fn get_user(state: Data<AppState>, name: Path<String>) -> impl Respond
             let result = SimpleUser::from_user(&user);
             HttpResponse::Ok().json(result)
         }
-        _ => HttpResponse::InternalServerError().json("Something went wrong")
+        _ => HttpResponse::InternalServerError().json("Something went wrong"),
     }
 }
 
@@ -49,6 +50,6 @@ pub async fn create_user(state: Data<AppState>, user: web::Json<User>) -> impl R
             let result = SimpleUser::from_user(&user);
             HttpResponse::Ok().json(result)
         }
-        _ => HttpResponse::InternalServerError().json("Something went wrong")
+        _ => HttpResponse::InternalServerError().json("Something went wrong"),
     }
 }
