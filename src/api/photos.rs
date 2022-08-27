@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{BufReader, Read, Write};
 
 use actix_multipart::Multipart;
+use actix_web::http::header::{CacheControl, CacheDirective};
 use actix_web::web::{Bytes, Data, Path, Query};
 use actix_web::{delete, get, post, web, Error, HttpResponse, Responder};
 use chrono::naive::serde::ts_milliseconds;
@@ -50,7 +51,9 @@ async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> i
         }
     });
 
-    HttpResponse::Ok().streaming(rx)
+    HttpResponse::Ok()
+        .insert_header(CacheControl(vec![CacheDirective::MaxAge(31536000)])) // 1 Year
+        .streaming(rx)
 }
 
 async fn base_upload_photo(
