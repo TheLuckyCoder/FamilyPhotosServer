@@ -113,6 +113,8 @@ impl DataScan {
                 })
             }
         }
+        
+        println!("Finished scanning for {}", user.user_name);
 
         (user, photos)
     }

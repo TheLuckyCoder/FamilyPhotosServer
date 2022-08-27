@@ -77,15 +77,16 @@ async fn main() -> std::io::Result<()> {
         storage: FileStorage::new(storage_path.clone()),
     };
 
-    {
+    let app_state2 = app_state.clone();
+    actix_web::rt::spawn(async move {
         let instant = Instant::now();
-        let data_scan = DataScan::scan(&app_state).await;
-        data_scan.update_database(&app_state).await;
+        let data_scan = DataScan::scan(&app_state2).await;
+        data_scan.update_database(&app_state2).await;
         println!(
             "Photos scanning completed in {} seconds",
             instant.elapsed().as_secs()
         );
-    }
+    });
 
     {
         let mut users: Vec<User> = match manager.send(GetUsers).await {
