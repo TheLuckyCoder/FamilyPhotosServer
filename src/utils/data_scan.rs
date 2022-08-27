@@ -37,32 +37,32 @@ impl DataScan {
             Ok(Ok(users)) => users,
             _ => panic!("Could not load users"),
         };
-        println!("Started scanning users photos: {:?}", users);
+        println!("Started scanning user's photos: {:?}", users);
 
         let results = std::thread::scope(|scope| {
-            users
+            let threads = users
                 .into_iter()
                 .map(|user| scope.spawn(move || Self::scan_user_photos(storage, user)))
+                .collect::<Vec<_>>(); // It is not unnecessary as we allow the threads to run in parallel
+
+            threads
+                .into_iter()
                 .map(|thread| thread.join())
-                .collect::<Vec<Result<_, _>>>()
+                .filter_map(|result| match result {
+                    Ok(user_photos) => Some(user_photos),
+                    Err(err) => {
+                        println!("{:?}", err);
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
         });
 
-        let mut filtered_results = vec![];
-
-        for result in results {
-            match result {
-                Ok(user_photos) => filtered_results.push(user_photos),
-                Err(err) => println!("{:?}", err),
-            }
-        }
-
-        DataScan {
-            results: filtered_results,
-        }
+        DataScan { results }
     }
 
     fn scan_user_photos(storage: &FileStorage, user: User) -> (User, Vec<Photo>) {
-        let mut photos = vec![];
+        let mut photos = Vec::with_capacity(8192 * 4);
 
         let user_path = storage.resolve(&user.user_name);
         if !user_path.exists() {
@@ -88,10 +88,7 @@ impl DataScan {
                     .or_else(|| Self::get_regex_timestamp(path));
 
                 if timestamp.is_none() {
-                    eprintln!(
-                        "Failed to find timestamp for {}, file skipped",
-                        entry.path().to_string_lossy()
-                    );
+                    eprintln!("No timestamp: {}", entry.path().to_string_lossy());
                     continue;
                 }
 
@@ -147,10 +144,13 @@ impl DataScan {
                     found_photos.len(),
                     user.user_name
                 );
-                db.send(CreatePhotos(found_photos))
-                    .await
-                    .unwrap()
-                    .expect("Failed to insert photos");
+
+                for chunk in found_photos.chunks(512) {
+                    db.send(CreatePhotos(Vec::from(chunk)))
+                        .await
+                        .unwrap()
+                        .expect("Failed to insert photos");
+                }
             }
 
             let removed_photos = existing_photos
@@ -260,7 +260,7 @@ impl DataScan {
             static ref DATE_HOUR_PATTERN: Regex = Regex::new("([0-9]{8}).([0-9]{6})").unwrap();
             static ref DATE_HOUR_STRIP_PATTERN: Regex = Regex::new("([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2})").unwrap(); // 2016-09-22-16-19-41
             static ref DATE_PATTERN: Regex = Regex::new("([0-9]{8})").unwrap();
-            static ref MILLIS_PATTERN: Regex = Regex::new(".*-([0-9]{13})").unwrap();
+            static ref MILLIS_PATTERN: Regex = Regex::new(".*([0-9]{13})").unwrap();
         }
 
         let name_os = path.file_stem().unwrap().to_os_string();
@@ -285,7 +285,10 @@ impl DataScan {
 
         if let Some(cap) = DATE_PATTERN.captures(name) {
             let date = &cap[1];
-            if let Ok(t) = NaiveDateTime::parse_from_str(date, "%Y%m%d") {
+            if let Ok(t) = NaiveDateTime::parse_from_str(
+                (date.to_string() + " 000000").as_str(),
+                "%Y%m%d %H%M%S",
+            ) {
                 return Some(t);
             }
         }
