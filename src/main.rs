@@ -7,19 +7,18 @@ use std::time::Instant;
 use actix::SyncArbiter;
 use actix_web::middleware::{Logger, TrailingSlash};
 use actix_web::web::Data;
-use actix_web::{dev::ServiceRequest, middleware, web, App, Error, HttpServer};
+use actix_web::{dev::ServiceRequest, middleware, web, App, Error, HttpResponse, HttpServer};
 use actix_web_httpauth::extractors::{basic, AuthenticationError};
 use actix_web_httpauth::headers::www_authenticate::basic::Basic;
 use actix_web_httpauth::middleware::HttpAuthentication;
 use rand::prelude::*;
 use rand_hc::Hc128Rng;
 
-use crate::api::home::ping;
 use crate::api::photos::{
     change_photo_location, delete_photo, download_photo, photos_list, public_delete_photo,
     public_download_photo, public_photos_list, public_upload_photo, upload_photo,
 };
-use crate::api::users::{create_user, get_user, get_users};
+use crate::api::users::{get_user, get_users};
 use crate::db::users::GetUsers;
 use crate::db::DbActor;
 use crate::model::user::User;
@@ -77,11 +76,13 @@ async fn main() -> std::io::Result<()> {
         storage: FileStorage::new(storage_path.clone()),
     };
 
-    let app_state2 = app_state.clone();
+    // Scan the storage directory for new photos in the background
+    let app_state_copy = app_state.clone();
     actix_web::rt::spawn(async move {
         let instant = Instant::now();
-        let data_scan = DataScan::scan(&app_state2).await;
-        data_scan.update_database(&app_state2).await;
+        let data_scan = DataScan::scan(&app_state_copy).await;
+        data_scan.update_database(&app_state_copy).await;
+
         println!(
             "Photos scanning completed in {} seconds",
             instant.elapsed().as_secs()
@@ -105,8 +106,8 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(logger)
             .wrap(middleware::NormalizePath::new(TrailingSlash::Trim))
-            .service(ping)
-            .service(create_user)
+            .service(web::resource("").to(HttpResponse::Ok))
+            .service(web::resource("/ping").to(HttpResponse::Ok))
             .service(
                 web::scope("/user")
                     .wrap(auth.clone())

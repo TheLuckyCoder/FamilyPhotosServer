@@ -17,7 +17,7 @@ use crate::model::photo::{Photo, PhotoBody};
 use crate::model::user::User;
 use crate::AppState;
 
-const PUBLIC_USER_ID: i64 = 0;
+const PUBLIC_USER_ID: i64 = 1;
 
 async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> impl Responder {
     let db = state.db.clone();
@@ -40,9 +40,9 @@ async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> i
 
     let (tx, rx) = local_channel::mpsc::channel::<Result<Bytes, Error>>();
     actix_web::rt::spawn(async move {
-        const CAPACITY: usize = 8192 * 2;
+        const CAPACITY: usize = 8192 * 4;
         let mut reader = BufReader::with_capacity(CAPACITY, file);
-        let mut buf = [0u8; 8192 * 2];
+        let mut buf = [0u8; CAPACITY];
 
         while reader.read_exact(&mut buf).is_ok() {
             if tx.send(Ok(Bytes::copy_from_slice(&buf))).is_err() {
@@ -110,7 +110,9 @@ async fn base_upload_photo(
         // TODO Handle Unwrap
         Ok(Ok(photo)) => {
             if photo.owner != user_id {
-                Ok(HttpResponse::BadRequest().json("Photo does not belong to user "))
+                Ok(HttpResponse::BadRequest().json(
+                    "Photo does not belong to user ".to_string() + user_id.to_string().as_str(),
+                ))
             } else {
                 Ok(HttpResponse::Ok().json(photo))
             }
