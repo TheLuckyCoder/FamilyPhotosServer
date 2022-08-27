@@ -113,7 +113,7 @@ impl DataScan {
                 })
             }
         }
-        
+
         println!("Finished scanning for {}", user.user_name);
 
         (user, photos)
@@ -268,9 +268,9 @@ impl DataScan {
         let name_os = path.file_stem().unwrap().to_os_string();
         let name = name_os.to_str().unwrap();
 
-        if let Some(cap) = DATE_HOUR_PATTERN.captures(name) {
-            let date: &str = &cap[1];
-            let time: &str = &cap[2];
+        if let Some(capture) = DATE_HOUR_PATTERN.captures(name) {
+            let date: &str = &capture[1];
+            let time: &str = &capture[2];
 
             if let Ok(t) =
                 NaiveDateTime::parse_from_str((date.to_string() + time).as_str(), "%Y%m%d%H%M%S")
@@ -279,14 +279,14 @@ impl DataScan {
             }
         }
 
-        if let Some(cap) = DATE_HOUR_STRIP_PATTERN.captures(name) {
-            if let Ok(t) = NaiveDateTime::parse_from_str(&cap[1], "%Y-%m-%d-%H-%M-%S") {
+        if let Some(capture) = DATE_HOUR_STRIP_PATTERN.captures(name) {
+            if let Ok(t) = NaiveDateTime::parse_from_str(&capture[1], "%Y-%m-%d-%H-%M-%S") {
                 return Some(t);
             }
         }
 
-        if let Some(cap) = DATE_PATTERN.captures(name) {
-            let date = &cap[1];
+        if let Some(capture) = DATE_PATTERN.captures(name) {
+            let date = &capture[1];
             if let Ok(t) = NaiveDateTime::parse_from_str(
                 (date.to_string() + " 000000").as_str(),
                 "%Y%m%d %H%M%S",
@@ -295,8 +295,8 @@ impl DataScan {
             }
         }
 
-        if let Some(cap) = MILLIS_PATTERN.captures(name) {
-            let millis = &cap[1];
+        if let Some(capture) = MILLIS_PATTERN.captures(name) {
+            let millis = &capture[1];
             if let Ok(t) = NaiveDateTime::parse_from_str(&millis[..9], "%s") {
                 return Some(t);
             }

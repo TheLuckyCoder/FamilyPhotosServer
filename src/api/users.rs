@@ -1,9 +1,7 @@
-use actix_web::web::Data;
-use actix_web::{get, post, web, web::Path, HttpResponse, Responder};
+use actix_web::{get, web::Data, web::Path, HttpResponse, Responder};
 
-use crate::db::users::{CreateUser, GetUser, GetUsers};
-use crate::model::user::{SimpleUser, User};
-use crate::utils::password_hash::get_hash_from_password;
+use crate::db::users::{GetUser, GetUsers};
+use crate::model::user::SimpleUser;
 use crate::AppState;
 
 // region Public
@@ -38,7 +36,7 @@ pub async fn get_user(state: Data<AppState>, name: Path<String>) -> impl Respond
     }
 }
 
-#[post("")]
+/*#[post("")]
 pub async fn create_user(state: Data<AppState>, user: web::Json<User>) -> impl Responder {
     let db = state.get_ref().db.clone();
 
@@ -52,4 +50,4 @@ pub async fn create_user(state: Data<AppState>, user: web::Json<User>) -> impl R
         }
         _ => HttpResponse::InternalServerError().json("Something went wrong"),
     }
-}
+}*/
