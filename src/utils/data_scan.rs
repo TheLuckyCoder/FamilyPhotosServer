@@ -37,7 +37,13 @@ impl DataScan {
             Ok(Ok(users)) => users,
             _ => panic!("Could not load users"),
         };
-        println!("Started scanning user's photos: {:?}", users);
+        println!(
+            "Started scanning user's photos: {:?}",
+            users
+                .iter()
+                .map(|user| user.user_name.clone())
+                .collect::<Vec<_>>()
+        );
 
         let results = std::thread::scope(|scope| {
             let threads = users

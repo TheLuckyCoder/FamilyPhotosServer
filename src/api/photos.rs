@@ -35,7 +35,7 @@ async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> i
 
     let photo_path = photo
         .partial_path(&user)
-        .expect("Photo does not belong to this user do not match");
+        .expect("Photo does not belong to this user");
     let file = File::open(storage.resolve(photo_path)).expect("Could not open photo");
 
     let (tx, rx) = local_channel::mpsc::channel::<Result<Bytes, Error>>();

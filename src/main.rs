@@ -11,6 +11,7 @@ use actix_web::{dev::ServiceRequest, middleware, web, App, Error, HttpResponse, 
 use actix_web_httpauth::extractors::{basic, AuthenticationError};
 use actix_web_httpauth::headers::www_authenticate::basic::Basic;
 use actix_web_httpauth::middleware::HttpAuthentication;
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use rand::prelude::*;
 use rand_hc::Hc128Rng;
 
@@ -58,10 +59,20 @@ async fn any_user_auth_validator(
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
+    if std::env::var("RUST_LOG").is_err() {
+        eprintln!("Logging is disabled please set RUST_LOG to enable logging")
+    }
+
+    let https_port: u16 = std::env::var("HTTPS_PORT")
+        .expect("HTTPS_PORT must be set")
+        .parse()
+        .expect("HTTPS_PORT is not a valid number");
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let storage_path = std::env::var("STORAGE_PATH").expect("STORAGE_PATH must be set");
+    let ssl_private_key_path =
+        std::env::var("SSL_PRIVATE_KEY_PATH").expect("SSL_PRIVATE_KEY_PATH must be set");
+    let ssl_certs_path = std::env::var("SSL_CERTS_PATH").expect("SSL_CERTS_PATH must be set");
 
-    std::env::set_var("RUST_LOG", "debug");
     std::env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
@@ -70,6 +81,10 @@ async fn main() -> std::io::Result<()> {
         let rng = Mutex::new(Hc128Rng::from_entropy());
         DbActor(pool, rng)
     });
+
+    let mut ssl_builder = SslAcceptor::mozilla_modern_v5(SslMethod::tls())?;
+    ssl_builder.set_private_key_file(ssl_private_key_path, SslFiletype::PEM)?;
+    ssl_builder.set_certificate_chain_file(ssl_certs_path)?;
 
     let app_state = AppState {
         db: manager.clone(),
@@ -133,7 +148,7 @@ async fn main() -> std::io::Result<()> {
             )
             .app_data(Data::new(app_state.clone()))
     })
-    .bind(("127.0.0.1", 5000))?
+    .bind_openssl(("127.0.0.1", https_port), ssl_builder)?
     .run()
     .await
 }
