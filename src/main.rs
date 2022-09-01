@@ -56,6 +56,10 @@ async fn any_user_auth_validator(
     Err((Error::from(AuthenticationError::new(Basic::new())), req))
 }
 
+fn get_env_var(var_name: &str) -> String {
+    std::env::var(var_name).unwrap_or_else(|_| panic!("{var_name} must be set!"))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
@@ -63,15 +67,13 @@ async fn main() -> std::io::Result<()> {
         eprintln!("Logging is disabled please set RUST_LOG to enable logging")
     }
 
-    let https_port: u16 = std::env::var("HTTPS_PORT")
-        .expect("HTTPS_PORT must be set")
+    let https_port: u16 = get_env_var("HTTPS_PORT")
         .parse()
-        .expect("HTTPS_PORT is not a valid number");
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let storage_path = std::env::var("STORAGE_PATH").expect("STORAGE_PATH must be set");
-    let ssl_private_key_path =
-        std::env::var("SSL_PRIVATE_KEY_PATH").expect("SSL_PRIVATE_KEY_PATH must be set");
-    let ssl_certs_path = std::env::var("SSL_CERTS_PATH").expect("SSL_CERTS_PATH must be set");
+        .expect("HTTPS_PORT must be a valid port number!");
+    let database_url = get_env_var("DATABASE_URL");
+    let storage_path = get_env_var("STORAGE_PATH");
+    let ssl_private_key_path = get_env_var("SSL_PRIVATE_KEY_PATH");
+    let ssl_certs_path = get_env_var("SSL_CERTS_PATH");
 
     std::env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
@@ -113,6 +115,8 @@ async fn main() -> std::io::Result<()> {
             USERS.append(&mut users);
         }
     }
+
+    log::info!("Starting server on port {https_port}");
 
     HttpServer::new(move || {
         let logger = Logger::new(r#"%r %s %b "%{Referer}i" "%{User-Agent}i" %T"#);
