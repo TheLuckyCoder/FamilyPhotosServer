@@ -67,9 +67,10 @@ async fn main() -> std::io::Result<()> {
         eprintln!("Logging is disabled please set RUST_LOG to enable logging")
     }
 
-    let https_port: u16 = get_env_var("HTTPS_PORT")
+    let server_port: u16 = get_env_var("SERVER_PORT")
         .parse()
-        .expect("HTTPS_PORT must be a valid port number!");
+        .expect("SERVER_PORT must be a valid port number!");
+    let use_https: bool = get_env_var("USE_HTTPS").parse().unwrap();
     let database_url = get_env_var("DATABASE_URL");
     let storage_path = get_env_var("STORAGE_PATH");
     let ssl_private_key_path = get_env_var("SSL_PRIVATE_KEY_PATH");
@@ -83,10 +84,6 @@ async fn main() -> std::io::Result<()> {
         let rng = Mutex::new(Hc128Rng::from_entropy());
         DbActor(pool, rng)
     });
-
-    let mut ssl_builder = SslAcceptor::mozilla_modern_v5(SslMethod::tls())?;
-    ssl_builder.set_private_key_file(ssl_private_key_path, SslFiletype::PEM)?;
-    ssl_builder.set_certificate_chain_file(ssl_certs_path)?;
 
     let app_state = AppState {
         db: manager.clone(),
@@ -116,9 +113,9 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    log::info!("Starting server on port {https_port}");
+    log::info!("Starting server on port {server_port}");
 
-    HttpServer::new(move || {
+    let server = HttpServer::new(move || {
         let logger = Logger::new(r#"%r %s %b "%{Referer}i" "%{User-Agent}i" %T"#);
         let auth = HttpAuthentication::basic(any_user_auth_validator);
 
@@ -151,8 +148,18 @@ async fn main() -> std::io::Result<()> {
                     .service(public_delete_photo),
             )
             .app_data(Data::new(app_state.clone()))
-    })
-    .bind_openssl(("127.0.0.1", https_port), ssl_builder)?
-    .run()
-    .await
+    });
+
+    if use_https {
+        let mut ssl_builder = SslAcceptor::mozilla_modern_v5(SslMethod::tls())?;
+        ssl_builder.set_private_key_file(ssl_private_key_path, SslFiletype::PEM)?;
+        ssl_builder.set_certificate_chain_file(ssl_certs_path)?;
+
+        server
+            .bind_openssl(("127.0.0.1", server_port), ssl_builder)?
+            .run()
+            .await
+    } else {
+        server.bind(("127.0.0.1", server_port))?.run().await
+    }
 }
