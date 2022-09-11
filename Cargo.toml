@@ -11,7 +11,7 @@ lto = "thin"
 
 [dependencies]
 actix = "0.13.0"
-actix-web = { version = "4.1", default-features = false, features = ["macros", "openssl"] }
+actix-web = { version = "4.2", default-features = false, features = ["macros", "openssl"] }
 actix-web-httpauth = "^0.8"
 openssl = "^0.10"
 actix-multipart = "^0.4"
