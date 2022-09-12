@@ -67,6 +67,7 @@ async fn main() -> std::io::Result<()> {
         eprintln!("Logging is disabled please set RUST_LOG to enable logging")
     }
 
+    let skip_scanning: bool = get_env_var("SKIP_SCANNING").parse().unwrap();
     let server_port: u16 = get_env_var("SERVER_PORT")
         .parse()
         .expect("SERVER_PORT must be a valid port number!");
@@ -91,17 +92,19 @@ async fn main() -> std::io::Result<()> {
     };
 
     // Scan the storage directory for new photos in the background
-    let app_state_copy = app_state.clone();
-    actix_web::rt::spawn(async move {
-        let instant = Instant::now();
-        let data_scan = DataScan::scan(&app_state_copy).await;
-        data_scan.update_database(&app_state_copy).await;
+    if !skip_scanning {
+        let app_state_copy = app_state.clone();
+        actix_web::rt::spawn(async move {
+            let instant = Instant::now();
+            let data_scan = DataScan::scan(&app_state_copy).await;
+            data_scan.update_database(&app_state_copy).await;
 
-        println!(
-            "Photos scanning completed in {} seconds",
-            instant.elapsed().as_secs()
-        );
-    });
+            println!(
+                "Photos scanning completed in {} seconds",
+                instant.elapsed().as_secs()
+            );
+        });
+    }
 
     {
         let mut users: Vec<User> = match manager.send(GetUsers).await {
