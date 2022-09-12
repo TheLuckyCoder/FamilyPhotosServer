@@ -151,7 +151,7 @@ async fn main() -> std::io::Result<()> {
     });
 
     if use_https {
-        let mut ssl_builder = SslAcceptor::mozilla_modern_v5(SslMethod::tls())?;
+        let mut ssl_builder = SslAcceptor::mozilla_intermediate_v5(SslMethod::tls())?;
         ssl_builder.set_private_key_file(ssl_private_key_path, SslFiletype::PEM)?;
         ssl_builder.set_certificate_chain_file(ssl_certs_path)?;
 

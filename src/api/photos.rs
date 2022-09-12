@@ -1,15 +1,21 @@
+use actix_files::NamedFile;
 use std::borrow::Borrow;
+use std::fmt;
+use std::fmt::Formatter;
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
+use std::path::Display;
 
 use actix_multipart::Multipart;
 use actix_web::http::header::{CacheControl, CacheDirective};
+use actix_web::http::StatusCode;
 use actix_web::web::{Bytes, Data, Path, Query};
-use actix_web::{delete, get, post, web, Error, HttpResponse, Responder};
+use actix_web::{
+    delete, error, get, post, web, Error, HttpRequest, HttpResponse, Responder, Result,
+};
 use chrono::naive::serde::ts_milliseconds;
-use serde::Deserialize;
-
 use futures_util::TryStreamExt as _;
+use serde::Deserialize;
 
 use crate::db::photos::{CreatePhoto, DeletePhoto, GetPhoto, GetPhotos, UpdatePhoto};
 use crate::db::users::GetUser;
@@ -19,26 +25,42 @@ use crate::AppState;
 
 const PUBLIC_USER_ID: i64 = 1;
 
-async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> impl Responder {
+#[derive(Debug)]
+struct SimpleError(&'static str);
+
+impl fmt::Display for SimpleError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "my error: {}", self.0)
+    }
+}
+
+// Use default implementation for `error_response()` method
+impl error::ResponseError for SimpleError {}
+
+async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> Result<NamedFile> {
     let db = state.db.clone();
     let storage = state.storage.borrow();
 
     let user: User = match db.send(GetUser::Id(user_id)).await {
         Ok(Ok(user)) => user,
-        _ => return HttpResponse::BadRequest().json("Invalid user id"),
+        _ => return Err(Error::from(SimpleError("Invalid user id"))),
     };
 
     let photo: Photo = match db.send(GetPhoto { id: photo_id }).await {
         Ok(Ok(photo)) => photo,
-        _ => return HttpResponse::InternalServerError().json("Something went wrong"),
+        _ => return Err(Error::from(SimpleError("Could not find photo"))),
     };
 
     let photo_path = photo
         .partial_path(&user)
         .expect("Photo does not belong to this user");
-    let file = File::open(storage.resolve(photo_path)).expect("Could not open photo");
+    // let file = File::open(storage.resolve(photo_path)).expect("Could not open photo");
+    let file = NamedFile::open_async(storage.resolve(photo_path))
+        .await
+        .expect("Could not open photo");
+    // file.use_etag(false);
 
-    let (tx, rx) = local_channel::mpsc::channel::<Result<Bytes, Error>>();
+    /*let (tx, rx) = local_channel::mpsc::channel::<Result<Bytes, Error>>();
     actix_web::rt::spawn(async move {
         const CAPACITY: usize = 8192 * 4;
         let mut reader = BufReader::with_capacity(CAPACITY, file);
@@ -49,11 +71,19 @@ async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> i
                 return;
             }
         }
-    });
+    });*/
+    /*.content_type(
+        mime_guess::from_path(photo.name)
+            .first_or(mime_guess::mime::IMAGE_JPEG)
+            .essence_str(),
+    )*/
+    /*let response = HttpResponse::Ok()
+    .insert_header(CacheControl(vec![CacheDirective::MaxAge(31536000)]))
+    .finish(); // 1 Year*/
 
-    HttpResponse::Ok()
-        .insert_header(CacheControl(vec![CacheDirective::MaxAge(31536000)])) // 1 Year
-        .streaming(rx)
+    // .streaming(file)
+
+    Ok(file)
 }
 
 async fn base_upload_photo(
@@ -162,7 +192,7 @@ pub async fn photos_list(state: Data<AppState>, user_id: Path<i64>) -> impl Resp
 }
 
 #[get("/{user_id}/download/{photo_id}")]
-pub async fn download_photo(state: Data<AppState>, path: Path<(i64, i64)>) -> impl Responder {
+pub async fn download_photo(state: Data<AppState>, path: Path<(i64, i64)>) -> Result<NamedFile> {
     let (user_id, photo_id) = path.into_inner();
     base_download_photo(state.get_ref(), user_id, photo_id).await
 }
