@@ -1,18 +1,13 @@
-use actix_files::NamedFile;
 use std::borrow::Borrow;
 use std::fmt;
 use std::fmt::Formatter;
 use std::fs::File;
-use std::io::{BufReader, Read, Write};
-use std::path::Display;
+use std::io::Write;
 
+use actix_files::NamedFile;
 use actix_multipart::Multipart;
-use actix_web::http::header::{CacheControl, CacheDirective};
-use actix_web::http::StatusCode;
-use actix_web::web::{Bytes, Data, Path, Query};
-use actix_web::{
-    delete, error, get, post, web, Error, HttpRequest, HttpResponse, Responder, Result,
-};
+use actix_web::web::{Data, Path, Query};
+use actix_web::{delete, error, get, post, web, Error, HttpResponse, Responder, Result};
 use chrono::naive::serde::ts_milliseconds;
 use futures_util::TryStreamExt as _;
 use serde::Deserialize;
@@ -30,11 +25,10 @@ struct SimpleError(&'static str);
 
 impl fmt::Display for SimpleError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "my error: {}", self.0)
+        write!(f, "{}", self.0)
     }
 }
 
-// Use default implementation for `error_response()` method
 impl error::ResponseError for SimpleError {}
 
 async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> Result<NamedFile> {
@@ -54,34 +48,11 @@ async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> R
     let photo_path = photo
         .partial_path(&user)
         .expect("Photo does not belong to this user");
-    // let file = File::open(storage.resolve(photo_path)).expect("Could not open photo");
+
     let file = NamedFile::open_async(storage.resolve(photo_path))
         .await
-        .expect("Could not open photo");
-    // file.use_etag(false);
-
-    /*let (tx, rx) = local_channel::mpsc::channel::<Result<Bytes, Error>>();
-    actix_web::rt::spawn(async move {
-        const CAPACITY: usize = 8192 * 4;
-        let mut reader = BufReader::with_capacity(CAPACITY, file);
-        let mut buf = [0u8; CAPACITY];
-
-        while reader.read_exact(&mut buf).is_ok() {
-            if tx.send(Ok(Bytes::copy_from_slice(&buf))).is_err() {
-                return;
-            }
-        }
-    });*/
-    /*.content_type(
-        mime_guess::from_path(photo.name)
-            .first_or(mime_guess::mime::IMAGE_JPEG)
-            .essence_str(),
-    )*/
-    /*let response = HttpResponse::Ok()
-    .insert_header(CacheControl(vec![CacheDirective::MaxAge(31536000)]))
-    .finish(); // 1 Year*/
-
-    // .streaming(file)
+        .expect("Could not open photo")
+        .use_etag(false);
 
     Ok(file)
 }
@@ -192,7 +163,7 @@ pub async fn photos_list(state: Data<AppState>, user_id: Path<i64>) -> impl Resp
 }
 
 #[get("/{user_id}/download/{photo_id}")]
-pub async fn download_photo(state: Data<AppState>, path: Path<(i64, i64)>) -> Result<NamedFile> {
+pub async fn download_photo(state: Data<AppState>, path: Path<(i64, i64)>) -> impl Responder {
     let (user_id, photo_id) = path.into_inner();
     base_download_photo(state.get_ref(), user_id, photo_id).await
 }

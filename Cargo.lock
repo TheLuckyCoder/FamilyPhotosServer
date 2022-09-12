@@ -563,7 +563,6 @@ dependencies = [
  "futures-util",
  "kamadak-exif",
  "lazy_static",
- "local-channel",
  "log",
  "openssl",
  "rand",
