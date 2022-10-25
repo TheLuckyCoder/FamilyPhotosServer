@@ -195,7 +195,7 @@ pub async fn delete_photo(state: Data<AppState>, path: Path<(i64, i64)>) -> impl
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChangeLocationQuery {
-    target_user_id: i64,
+    target_user_id: Option<i64>,
     target_folder_name: Option<String>,
 }
 
@@ -221,7 +221,7 @@ pub async fn change_photo_location(
 
     let changed_photo = {
         let mut new = photo.clone();
-        new.owner = query.target_user_id;
+        new.owner = query.target_user_id.unwrap_or(PUBLIC_USER_ID);
         new.folder = query.target_folder_name.clone();
         new
     };

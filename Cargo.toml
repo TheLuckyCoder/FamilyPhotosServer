@@ -10,25 +10,25 @@ incremental = true
 lto = "thin"
 
 [dependencies]
-actix = "0.13.0"
+actix = "0.13"
 actix-web = { version = "4.2", default-features = false, features = ["macros", "openssl"] }
-actix-web-httpauth = "^0.8"
+actix-web-httpauth = "0.8"
 actix-files = "0.6"
-openssl = "^0.10"
-actix-multipart = "^0.4"
-chrono = { version = "^0.4", features = ["serde"] }
-serde = { version = "^1.0", features = ["derive"] }
-serde_json = "^1.0"
-diesel = { version = "2.0.0", default-features = false, features = ["32-column-tables", "r2d2", "postgres", "chrono"] }
-env_logger = "0.9.0"
-log = "^0.4"
-dotenv = "0.15.0"
-walkdir = "^2.3"
-rand = "^0.8"
-rand_hc = "0.3.1"
-futures-util = { version = "^0.3", default-features = false, features = ["std"] }
-lazy_static = "^1"
-regex = "^1"
-kamadak-exif = "^0.5"
-base64 = "^0.13"
-sha2 = "^0.10"
+openssl = "0.10"
+actix-multipart = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "r2d2", "postgres", "chrono"] }
+env_logger = "0.9"
+log = "0.4"
+dotenv = "0.15"
+walkdir = "2.3"
+rand = "0.8"
+rand_hc = "0.3"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+lazy_static = "1"
+regex = "1"
+kamadak-exif = "0.5"
+base64 = "0.13"
+sha2 = "0.10"
