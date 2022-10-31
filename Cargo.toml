@@ -8,6 +8,7 @@ edition = "2021"
 [profile.release]
 incremental = true
 lto = "thin"
+codegen-units = 1
 
 [dependencies]
 actix = "0.13"
@@ -32,3 +33,4 @@ regex = "1"
 kamadak-exif = "0.5"
 base64 = "0.13"
 sha2 = "0.10"
+image = { version = "0.24", default-features = false, features = ["gif", "jpeg", "png", "webp", "hdr", "webp-encoder"] }

@@ -24,6 +24,7 @@ use crate::db::DbActor;
 use crate::model::user::User;
 use crate::utils::data_scan::DataScan;
 use crate::utils::db::get_pool;
+use crate::utils::env_reader::EnvVariables;
 use crate::utils::file_storage::FileStorage;
 use crate::utils::password_hash::get_hash_from_password;
 use crate::utils::AppState;
@@ -55,43 +56,25 @@ async fn any_user_auth_validator(
     Err((Error::from(AuthenticationError::new(Basic::new())), req))
 }
 
-fn get_env_var(var_name: &str) -> String {
-    std::env::var(var_name).unwrap_or_else(|_| panic!("{var_name} must be set!"))
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    dotenv::dotenv().ok();
-    if std::env::var("RUST_LOG").is_err() {
-        eprintln!("Logging is disabled please set RUST_LOG to enable logging")
-    }
-
-    let skip_scanning: bool = get_env_var("SKIP_SCANNING").parse().unwrap();
-    let server_port: u16 = get_env_var("SERVER_PORT")
-        .parse()
-        .expect("SERVER_PORT must be a valid port number!");
-    let use_https: bool = get_env_var("USE_HTTPS").parse().unwrap();
-    let database_url = get_env_var("DATABASE_URL");
-    let storage_path = get_env_var("STORAGE_PATH");
-    let ssl_private_key_path = get_env_var("SSL_PRIVATE_KEY_PATH");
-    let ssl_certs_path = get_env_var("SSL_CERTS_PATH");
-
-    std::env::set_var("RUST_BACKTRACE", "1");
+    EnvVariables::init();
+    let vars = EnvVariables::get_all();
     env_logger::init();
 
     let manager = SyncArbiter::start(2, move || {
-        let pool = get_pool(database_url.as_str());
+        let pool = get_pool(vars.database_url.as_str());
         let rng = Mutex::new(Hc128Rng::from_entropy());
         DbActor(pool, rng)
     });
 
     let app_state = AppState {
         db: manager.clone(),
-        storage: FileStorage::new(storage_path.clone()),
+        storage: FileStorage::new(vars.storage_path.clone()),
     };
 
     // Scan the storage directory for new photos in the background
-    if !skip_scanning {
+    if !vars.skip_scanning {
         let app_state_copy = app_state.clone();
         actix_web::rt::spawn(async move {
             let instant = Instant::now();
@@ -115,7 +98,7 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    log::info!("Starting server on port {server_port}");
+    log::info!("Starting server on port {}", vars.server_port);
 
     let server = HttpServer::new(move || {
         let logger = Logger::new(r#"%r %s %b "%{Referer}i" "%{User-Agent}i" %T"#);
@@ -152,16 +135,16 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(app_state.clone()))
     });
 
-    if use_https {
+    if vars.use_https {
         let mut ssl_builder = SslAcceptor::mozilla_intermediate_v5(SslMethod::tls())?;
-        ssl_builder.set_private_key_file(ssl_private_key_path, SslFiletype::PEM)?;
-        ssl_builder.set_certificate_chain_file(ssl_certs_path)?;
+        ssl_builder.set_private_key_file(vars.ssl_private_key_path, SslFiletype::PEM)?;
+        ssl_builder.set_certificate_chain_file(vars.ssl_certs_path)?;
 
         server
-            .bind_openssl(("127.0.0.1", server_port), ssl_builder)?
+            .bind_openssl(("127.0.0.1", vars.server_port), ssl_builder)?
             .run()
             .await
     } else {
-        server.bind(("127.0.0.1", server_port))?.run().await
+        server.bind(("127.0.0.1", vars.server_port))?.run().await
     }
 }

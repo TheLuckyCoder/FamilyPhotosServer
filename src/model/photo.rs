@@ -55,4 +55,8 @@ impl Photo {
 
         Ok(format!("{}/{}", user.user_name, self.full_name()))
     }
+
+    pub fn partial_thumbnail_path(&self) -> String {
+        format!(".thumbnail/{}.webp", self.id)
+    }
 }

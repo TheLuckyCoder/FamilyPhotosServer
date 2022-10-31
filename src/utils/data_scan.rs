@@ -6,6 +6,7 @@ use std::io::BufReader;
 use std::path::Path;
 use std::str::from_utf8;
 
+use actix_files::file_extension_to_mime;
 use chrono::NaiveDateTime;
 use exif::{Field, In, Tag, Value};
 use lazy_static::lazy_static;
@@ -242,6 +243,11 @@ impl DataScan {
     }
 
     fn get_exif_timestamp(path: &Path) -> Option<NaiveDateTime> {
+        let mime = file_extension_to_mime(path.extension()?.to_str()?);
+        if mime.type_() != "image" {
+            return None;
+        }
+
         let file = fs::File::open(path).ok()?;
         let mut bufreader = BufReader::new(&file);
         let reader = exif::Reader::new()
