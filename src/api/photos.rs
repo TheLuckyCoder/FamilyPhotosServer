@@ -108,19 +108,22 @@ async fn base_thumbnail_photo(state: &AppState, user_id: i64, photo_id: i64) -> 
     let photo_path = storage.resolve(photo.partial_path(&user).map_err(StatusError::create)?);
     let thumbnail_path = storage.resolve(photo.partial_thumbnail_path());
 
-    let path = if thumbnail_path.exists()
-        || generate_thumbnail(photo_path.as_path(), thumbnail_path.as_path())
-    {
-        thumbnail_path
-    } else {
-        log::error!(
-            "Failed to generate thumbnail for photo {} user {}",
-            photo_id,
-            user_id
-        );
+    let path = web::block(move || {
+        if thumbnail_path.exists()
+            || generate_thumbnail(photo_path.as_path(), thumbnail_path.as_path())
+        {
+            thumbnail_path
+        } else {
+            log::error!(
+                "Failed to generate thumbnail for photo {} user {}",
+                photo_id,
+                user_id
+            );
 
-        photo_path
-    };
+            photo_path
+        }
+    })
+    .await?;
 
     let file = NamedFile::open_async(path)
         .await

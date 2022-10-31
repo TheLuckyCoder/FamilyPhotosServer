@@ -1,8 +1,10 @@
-use image::{DynamicImage, RgbImage};
 use std::cmp::max;
 use std::path::Path;
+use std::process::Command;
 
+use actix_files::file_extension_to_mime;
 use image::imageops::FilterType;
+use image::{DynamicImage, RgbImage};
 use libheif_rs::{ColorSpace, HeifContext, RgbChroma};
 
 const TARGET_WIDTH: u32 = 400;
@@ -19,27 +21,61 @@ fn read_heic_image<P: AsRef<Path>>(path: P) -> Option<DynamicImage> {
     Some(DynamicImage::from(buffer))
 }
 
-pub fn generate_thumbnail<Q, R>(load_path: Q, save_path: R) -> bool
+fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path: R) -> bool {
+    let intermediate_path = load_path
+        .as_ref()
+        .to_str()
+        .unwrap()
+        .rsplit_once('0')
+        .map(|(before, _after)| before.to_string() + ".jpeg")
+        .unwrap();
+
+    let mut child = Command::new("ffmpegthumbnailer")
+        .arg("-i")
+        .arg(load_path.as_ref().as_os_str())
+        .arg("-o")
+        .arg(&intermediate_path)
+        .arg("-s")
+        .arg(TARGET_WIDTH.to_string())
+        .arg("-a") // Make it square
+        .spawn()
+        .unwrap();
+
+    child.wait().expect("Failed to wait on ffmpegthumbnailer");
+
+    if let Ok(img) = image::open(intermediate_path) {
+        save_image(&save_path, img)
+    } else {
+        false
+    }
+}
+
+pub fn generate_thumbnail<P, R>(load_path: P, save_path: R) -> bool
 where
-    Q: AsRef<Path>,
+    P: AsRef<Path>,
     R: AsRef<Path>,
 {
     let ext = load_path.as_ref().extension().unwrap().to_ascii_lowercase();
+    let mime = file_extension_to_mime(ext.to_str().unwrap());
+    if mime.type_() == "video" {
+        generate_video_frame(&load_path, &save_path);
+    }
+
     if ext == "heic" || ext == "heif" {
         if let Some(img) = read_heic_image(&load_path) {
-            return generate_image(save_path, img);
+            return save_image(&save_path, img);
         }
         return false;
     }
 
-    if let Ok(img) = image::open(load_path) {
-        return generate_image(save_path, img);
+    if let Ok(img) = image::open(&load_path) {
+        return save_image(&save_path, img);
     }
 
     false
 }
 
-fn generate_image<R>(save_path: R, img: DynamicImage) -> bool
+fn save_image<R>(save_path: R, img: DynamicImage) -> bool
 where
     R: AsRef<Path>,
 {
