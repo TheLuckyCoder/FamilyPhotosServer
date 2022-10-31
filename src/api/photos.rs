@@ -339,6 +339,11 @@ pub async fn public_photos_list(state: Data<AppState>) -> impl Responder {
     }
 }
 
+#[get("/thumbnail/{photo_id}")]
+pub async fn public_thumbnail_photo(state: Data<AppState>, photo_id: Path<i64>) -> impl Responder {
+    base_thumbnail_photo(state.get_ref(), PUBLIC_USER_ID, photo_id.into_inner()).await
+}
+
 #[get("/download/{photo_id}")]
 pub async fn public_download_photo(state: Data<AppState>, photo_id: Path<i64>) -> impl Responder {
     base_download_photo(state.get_ref(), PUBLIC_USER_ID, photo_id.into_inner()).await

@@ -14,10 +14,7 @@ use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use rand::prelude::*;
 use rand_hc::Hc128Rng;
 
-use crate::api::photos::{
-    change_photo_location, delete_photo, download_photo, photos_list, public_delete_photo,
-    public_download_photo, public_photos_list, public_upload_photo, upload_photo,
-};
+use crate::api::photos::*;
 use crate::api::users::{get_user, get_users};
 use crate::db::users::GetUsers;
 use crate::db::DbActor;
@@ -119,6 +116,7 @@ async fn main() -> std::io::Result<()> {
                 web::scope("/photos")
                     .wrap(auth.clone())
                     .service(photos_list)
+                    .service(thumbnail_photo)
                     .service(download_photo)
                     .service(upload_photo)
                     .service(delete_photo)
@@ -128,6 +126,7 @@ async fn main() -> std::io::Result<()> {
                 web::scope("/public_photos")
                     .wrap(auth)
                     .service(public_photos_list)
+                    .service(public_thumbnail_photo)
                     .service(public_download_photo)
                     .service(public_upload_photo)
                     .service(public_delete_photo),

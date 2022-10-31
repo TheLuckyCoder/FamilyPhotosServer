@@ -6,7 +6,7 @@ where
     R: AsRef<Path>,
 {
     if let Ok(img) = image::open(load_path) {
-        let thumbnail = img.thumbnail(300, 300);
+        let thumbnail = img.thumbnail(400, 400);
         return thumbnail.save(save_path).is_ok();
     }
 
