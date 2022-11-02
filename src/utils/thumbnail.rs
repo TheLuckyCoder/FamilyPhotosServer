@@ -1,4 +1,5 @@
 use std::cmp::max;
+use std::fs;
 use std::path::Path;
 use std::process::Command;
 
@@ -7,8 +8,7 @@ use image::imageops::FilterType;
 use image::{DynamicImage, RgbImage};
 use libheif_rs::{ColorSpace, HeifContext, RgbChroma};
 
-const TARGET_WIDTH: u32 = 400;
-const TARGET_HEIGHT: u32 = 400;
+const THUMBNAIL_TARGET_SIZE: u32 = 400;
 
 fn read_heic_image<P: AsRef<Path>>(path: P) -> Option<DynamicImage> {
     let ctx = HeifContext::read_from_file(path.as_ref().to_str()?).ok()?;
@@ -16,19 +16,20 @@ fn read_heic_image<P: AsRef<Path>>(path: P) -> Option<DynamicImage> {
     let decoded_image = handle.decode(ColorSpace::Rgb(RgbChroma::Rgb), false).ok()?;
     let plane = decoded_image.planes().interleaved?;
 
-    let mut buffer = RgbImage::new(handle.width(), handle.height());
-    buffer.copy_from_slice(plane.data);
+    let buffer = RgbImage::from_raw(plane.width, plane.height, plane.data.to_vec())?;
     Some(DynamicImage::from(buffer))
 }
 
-fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path: R) -> bool {
+fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path: R) -> Option<()> {
+    log::info!(
+        "Generating thumbnail for video {}",
+        load_path.as_ref().display()
+    );
     let intermediate_path = load_path
         .as_ref()
-        .to_str()
-        .unwrap()
+        .to_str()?
         .rsplit_once('0')
-        .map(|(before, _after)| before.to_string() + ".jpeg")
-        .unwrap();
+        .map(|(before, _after)| before.to_string() + ".jpg")?;
 
     let mut child = Command::new("ffmpegthumbnailer")
         .arg("-i")
@@ -36,17 +37,18 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path:
         .arg("-o")
         .arg(&intermediate_path)
         .arg("-s")
-        .arg(TARGET_WIDTH.to_string())
+        .arg(THUMBNAIL_TARGET_SIZE.to_string())
         .arg("-a") // Make it square
         .spawn()
-        .unwrap();
+        .ok()?;
 
     child.wait().expect("Failed to wait on ffmpegthumbnailer");
 
-    if let Ok(img) = image::open(intermediate_path) {
-        save_image(&save_path, img)
+    if let Ok(img) = image::open(&intermediate_path) {
+        fs::remove_file(&intermediate_path).ok()?;
+        img.save(save_path).ok()
     } else {
-        false
+        None
     }
 }
 
@@ -58,7 +60,7 @@ where
     let ext = load_path.as_ref().extension().unwrap().to_ascii_lowercase();
     let mime = file_extension_to_mime(ext.to_str().unwrap());
     if mime.type_() == "video" {
-        generate_video_frame(&load_path, &save_path);
+        return generate_video_frame(&load_path, &save_path).is_some();
     }
 
     if ext == "heic" || ext == "heif" {
@@ -79,27 +81,16 @@ fn save_image<R>(save_path: R, img: DynamicImage) -> bool
 where
     R: AsRef<Path>,
 {
-    let (width2, height2) =
-        resize_dimensions_fill(img.width(), img.height(), TARGET_WIDTH, TARGET_HEIGHT);
+    let (width, height) = resize_dimensions_fill(img.width(), img.height());
 
-    let thumbnail = img.resize_exact(width2, height2, FilterType::Nearest);
-    /*let (iwidth, iheight) = intermediate.dimensions();
-    let ratio = u64::from(iwidth) * u64::from(NHEIGHT);
-    let nratio = u64::from(NWIDTH) * u64::from(iheight);
-
-    if nratio > ratio {
-        intermediate.crop(0, (iheight - NHEIGHT) / 2, NWIDTH, NHEIGHT)
-    } else {
-        intermediate.crop((iwidth - NWIDTH) / 2, 0, NWIDTH, NHEIGHT)
-    }*/
-    // let thumbnail = img.resize_to_fill(400, 400, FilterType::Lanczos3);
+    let thumbnail = img.resize_exact(width, height, FilterType::Nearest);
     thumbnail.save(save_path).is_ok()
 }
 
 #[inline]
-fn resize_dimensions_fill(width: u32, height: u32, nwidth: u32, nheight: u32) -> (u32, u32) {
-    let wratio = nwidth as f64 / width as f64;
-    let hratio = nheight as f64 / height as f64;
+fn resize_dimensions_fill(width: u32, height: u32) -> (u32, u32) {
+    let wratio = THUMBNAIL_TARGET_SIZE as f64 / width as f64;
+    let hratio = THUMBNAIL_TARGET_SIZE as f64 / height as f64;
     let ratio = f64::max(wratio, hratio);
 
     let nw = max((width as f64 * ratio).round() as u64, 1);
