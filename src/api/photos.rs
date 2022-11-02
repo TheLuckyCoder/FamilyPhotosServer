@@ -3,6 +3,7 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::fs::File;
 use std::io::Write;
+use std::time::Duration;
 
 use actix::Addr;
 use actix_files::NamedFile;
@@ -31,24 +32,17 @@ struct StatusError {
 }
 
 impl StatusError {
-    fn create(message: String) -> Error {
+    fn create<S: Into<String>>(message: S) -> Error {
         Error::from(Self {
-            message,
+            message: message.into(),
             status_code: StatusCode::INTERNAL_SERVER_ERROR,
         })
     }
 
-    fn create_status(message: String, status_code: StatusCode) -> Error {
+    fn create_status<S: Into<String>>(message: S, status_code: StatusCode) -> Error {
         Error::from(Self {
-            message,
+            message: message.into(),
             status_code,
-        })
-    }
-
-    fn create_str(message: &str) -> Error {
-        Error::from(Self {
-            message: message.to_string(),
-            status_code: StatusCode::INTERNAL_SERVER_ERROR,
         })
     }
 }
@@ -72,12 +66,22 @@ async fn get_user_and_photo(
 ) -> Result<(User, Photo)> {
     let user: User = match db.send(GetUser::Id(user_id)).await {
         Ok(Ok(user)) => user,
-        _ => return Err(StatusError::create_str("Invalid user id")),
+        _ => {
+            return Err(StatusError::create_status(
+                "Could not find photo",
+                StatusCode::NOT_FOUND,
+            ))
+        }
     };
 
     let photo: Photo = match db.send(GetPhoto { id: photo_id }).await {
         Ok(Ok(photo)) => photo,
-        _ => return Err(StatusError::create_str("Could not find photo")),
+        _ => {
+            return Err(StatusError::create_status(
+                "Could not find photo",
+                StatusCode::NOT_FOUND,
+            ))
+        }
     };
 
     Ok((user, photo))
@@ -93,7 +97,7 @@ async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> R
 
     let file = NamedFile::open_async(storage.resolve(photo_path))
         .await
-        .map_err(|_| StatusError::create_str("Could not open photo"))?
+        .map_err(|_| StatusError::create("Could not open photo"))?
         .use_etag(false);
 
     Ok(file)
@@ -107,27 +111,30 @@ async fn base_thumbnail_photo(state: &AppState, user_id: i64, photo_id: i64) -> 
 
     let photo_path = storage.resolve(photo.partial_path(&user).map_err(StatusError::create)?);
     let thumbnail_path = storage.resolve(photo.partial_thumbnail_path());
+    let photo_path_clone = photo_path.clone();
+    let thumbnail_path_clone = thumbnail_path.clone();
 
-    let path = web::block(move || {
-        if thumbnail_path.exists()
-            || generate_thumbnail(photo_path.as_path(), thumbnail_path.as_path())
-        {
-            thumbnail_path
-        } else {
-            log::error!(
-                "Failed to generate thumbnail for photo {} user {}",
-                photo_id,
-                user_id
-            );
+    let thumbnail_generated = thumbnail_path.exists()
+        || actix_web::rt::time::timeout(
+            Duration::from_secs(60),
+            web::block(move || generate_thumbnail(photo_path_clone, thumbnail_path_clone)),
+        )
+        .await
+        .map_err(|_| StatusError::create("Thumbnail took too long to generate"))??;
 
-            photo_path
-        }
-    })
-    .await?;
+    if !thumbnail_generated {
+        log::error!("Failed to generate thumbnail for photo {}", photo_id);
+    }
+
+    let path = if thumbnail_generated {
+        thumbnail_path
+    } else {
+        photo_path
+    };
 
     let file = NamedFile::open_async(path)
         .await
-        .map_err(|_| StatusError::create_str("Could not open photo"))?
+        .map_err(|_| StatusError::create("Could not open photo"))?
         .use_etag(false);
 
     Ok(file)
