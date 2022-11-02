@@ -1,6 +1,4 @@
 use std::borrow::Borrow;
-use std::fmt;
-use std::fmt::Formatter;
 use std::fs::File;
 use std::io::Write;
 use std::time::Duration;
@@ -10,7 +8,7 @@ use actix_files::NamedFile;
 use actix_multipart::Multipart;
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Path, Query};
-use actix_web::{delete, error, get, post, web, Error, HttpResponse, Responder, Result};
+use actix_web::{delete, get, post, web, HttpResponse, Responder, Result};
 use chrono::naive::serde::ts_milliseconds;
 use futures_util::TryStreamExt as _;
 use serde::Deserialize;
@@ -20,42 +18,19 @@ use crate::db::users::GetUser;
 use crate::db::DbActor;
 use crate::model::photo::{Photo, PhotoBody};
 use crate::model::user::User;
+use crate::utils::status_error::StatusError;
 use crate::utils::thumbnail::generate_thumbnail;
 use crate::AppState;
 
 const PUBLIC_USER_ID: i64 = 1;
 
-#[derive(Debug)]
-struct StatusError {
-    message: String,
-    status_code: StatusCode,
-}
-
-impl StatusError {
-    fn create<S: Into<String>>(message: S) -> Error {
-        Error::from(Self {
-            message: message.into(),
-            status_code: StatusCode::INTERNAL_SERVER_ERROR,
-        })
-    }
-
-    fn create_status<S: Into<String>>(message: S, status_code: StatusCode) -> Error {
-        Error::from(Self {
-            message: message.into(),
-            status_code,
-        })
-    }
-}
-
-impl fmt::Display for StatusError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl error::ResponseError for StatusError {
-    fn status_code(&self) -> StatusCode {
-        self.status_code
+async fn get_user(db: &Addr<DbActor>, user_id: i64) -> Result<User> {
+    match db.send(GetUser::Id(user_id)).await {
+        Ok(Ok(user)) => Ok(user),
+        _ => Err(StatusError::create_status(
+            "Could not find user",
+            StatusCode::NOT_FOUND,
+        )),
     }
 }
 
@@ -64,16 +39,6 @@ async fn get_user_and_photo(
     user_id: i64,
     photo_id: i64,
 ) -> Result<(User, Photo)> {
-    let user: User = match db.send(GetUser::Id(user_id)).await {
-        Ok(Ok(user)) => user,
-        _ => {
-            return Err(StatusError::create_status(
-                "Could not find photo",
-                StatusCode::NOT_FOUND,
-            ))
-        }
-    };
-
     let photo: Photo = match db.send(GetPhoto { id: photo_id }).await {
         Ok(Ok(photo)) => photo,
         _ => {
@@ -84,7 +49,7 @@ async fn get_user_and_photo(
         }
     };
 
-    Ok((user, photo))
+    Ok((get_user(db, user_id).await?, photo))
 }
 
 async fn base_download_photo(state: &AppState, user_id: i64, photo_id: i64) -> Result<NamedFile> {
@@ -145,14 +110,10 @@ async fn base_upload_photo(
     user_id: i64,
     query: UploadData,
     mut payload: Multipart,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse> {
     let db = state.db.clone();
     let storage = state.storage.borrow();
-
-    let user: User = match db.send(GetUser::Id(user_id)).await {
-        Ok(Ok(user)) => user,
-        _ => return Ok(HttpResponse::BadRequest().json("Invalid user id")),
-    };
+    let user = get_user(&db, user_id).await?;
 
     let mut new_photo: Option<PhotoBody> = None;
 
@@ -191,44 +152,35 @@ async fn base_upload_photo(
     }
 
     match db.send(CreatePhoto(new_photo.unwrap())).await {
-        // TODO Handle Unwrap
         Ok(Ok(photo)) => {
             if photo.owner != user_id {
-                Ok(HttpResponse::BadRequest().json(
-                    "Photo does not belong to user ".to_string() + user_id.to_string().as_str(),
+                Err(StatusError::create_status(
+                    format!("Photo does not belong to user {}", user_id),
+                    StatusCode::BAD_REQUEST,
                 ))
             } else {
                 Ok(HttpResponse::Ok().json(photo))
             }
         }
-        _ => Ok(HttpResponse::InternalServerError().json("Something went wrong")),
+        _ => Err(StatusError::create(
+            "Something went wrong creating the photo",
+        )),
     }
 }
 
-async fn base_delete_photo(state: &AppState, user_id: i64, photo_id: i64) -> impl Responder {
+async fn base_delete_photo(state: &AppState, user_id: i64, photo_id: i64) -> Result<String> {
     let db = state.db.clone();
     let storage = state.storage.borrow();
 
-    let result = get_user_and_photo(&db, user_id, photo_id)
-        .await
-        .map_err(|e| HttpResponse::BadRequest().json(e.to_string()));
+    let (user, photo) = get_user_and_photo(&db, user_id, photo_id).await?;
 
-    let (user, photo) = match result {
-        Ok(v) => v,
-        Err(e) => return e,
-    };
-
-    if storage.delete_file(
-        photo
-            .partial_path(&user)
-            .expect("Photo does not belong to this user"),
-    ) {
+    if storage.delete_file(photo.partial_path(&user).map_err(StatusError::create)?) {
         match db.send(DeletePhoto { id: photo_id }).await {
-            Ok(Ok(_count)) => HttpResponse::Ok().json("{\"deleted\": true}"),
-            _ => HttpResponse::InternalServerError().json("Failed to remove photo from database"),
+            Ok(Ok(_count)) => Ok("{\"deleted\": true}".to_string()),
+            _ => Err(StatusError::create("Failed to remove photo from database")),
         }
     } else {
-        HttpResponse::InternalServerError().json("File could not be deleted")
+        Err(StatusError::create("File could not be deleted"))
     }
 }
 
@@ -296,16 +248,7 @@ pub async fn change_photo_location(
     let db = state.get_ref().db.clone();
     let storage = state.get_ref().storage.borrow();
     let (user_id, photo_id) = path.into_inner();
-
-    let user = match db.send(GetUser::Id(user_id)).await {
-        Ok(Ok(user)) => user,
-        _ => return HttpResponse::BadRequest().json("Invalid user id"),
-    };
-
-    let photo: Photo = match db.send(GetPhoto { id: photo_id }).await {
-        Ok(Ok(photo)) => photo,
-        _ => return HttpResponse::InternalServerError().json("Something went wrong"),
-    };
+    let (user, photo) = get_user_and_photo(&db, user_id, photo_id).await?;
 
     let changed_photo = {
         let mut new = photo.clone();
@@ -315,23 +258,25 @@ pub async fn change_photo_location(
     };
 
     storage.move_file(
-        photo.partial_path(&user).unwrap(),
-        changed_photo.partial_path(&user).unwrap(),
+        photo.partial_path(&user).map_err(StatusError::create)?,
+        changed_photo
+            .partial_path(&user)
+            .map_err(StatusError::create)?,
     );
 
     match db.send(UpdatePhoto(changed_photo)).await {
         Ok(Ok(_)) => {}
-        _ => return HttpResponse::InternalServerError().json("Something went wrong"),
+        _ => {
+            return Err(StatusError::create(
+                "Something went wrong updating the photo",
+            ))
+        }
     };
 
-    if storage.delete_file(
-        photo
-            .partial_path(&user)
-            .expect("Photo does not belong to user"),
-    ) {
-        HttpResponse::Ok().json("{\"deleted\": true}")
+    if storage.delete_file(photo.partial_path(&user).map_err(StatusError::create)?) {
+        Ok(HttpResponse::Ok())
     } else {
-        HttpResponse::InternalServerError().json("File could not be deleted")
+        Err(StatusError::create("File could not be deleted"))
     }
 }
 
