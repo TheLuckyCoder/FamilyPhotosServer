@@ -3,12 +3,6 @@ name = "familyphotos"
 version = "1.0.0"
 edition = "2021"
 
-## Needed libraries and programs:
-# - libheif
-# - libwebp
-# - ffmpegthumbnailer
-# - postgres
-
 [profile.release]
 incremental = true
 lto = "thin"
@@ -37,6 +31,4 @@ regex = "1"
 kamadak-exif = "0.5"
 base64 = "0.13"
 sha2 = "0.10"
-
 image = { version = "0.24", default-features = false, features = ["gif", "jpeg", "png", "webp", "hdr", "webp-encoder"] }
-libheif-rs = "0.15"

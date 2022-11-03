@@ -5,19 +5,35 @@ use std::process::Command;
 
 use actix_files::file_extension_to_mime;
 use image::imageops::FilterType;
-use image::{DynamicImage, RgbImage};
-use libheif_rs::{ColorSpace, HeifContext, RgbChroma};
+use image::DynamicImage;
 
 const THUMBNAIL_TARGET_SIZE: u32 = 400;
 
-fn read_heic_image<P: AsRef<Path>>(path: P) -> Option<DynamicImage> {
-    let ctx = HeifContext::read_from_file(path.as_ref().to_str()?).ok()?;
-    let handle = ctx.primary_image_handle().ok()?;
-    let decoded_image = handle.decode(ColorSpace::Rgb(RgbChroma::Rgb), false).ok()?;
-    let plane = decoded_image.planes().interleaved?;
+fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> Option<()> {
+    let intermediate_path = load_path
+        .to_str()?
+        .rsplit_once('.')
+        .map(|(before, _after)| before.to_string() + ".png")?;
 
-    let buffer = RgbImage::from_raw(plane.width, plane.height, plane.data.to_vec())?;
-    Some(DynamicImage::from(buffer))
+    let mut child = Command::new("heif-convert")
+        .arg("-q 100")
+        .arg(load_path)
+        .arg(&intermediate_path)
+        .spawn()
+        .ok()?;
+
+    if !child.wait().ok()?.success() {
+        log::warn!("Failed to generate thumbnail for {}", load_path.display());
+    }
+
+    if let Ok(img) = image::open(&intermediate_path) {
+        fs::remove_file(intermediate_path).ok()?;
+        if resize_and_save_image(save_path, img) {
+            return Some(());
+        }
+    }
+
+    None
 }
 
 fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path: R) -> Option<()> {
@@ -28,7 +44,7 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path:
     let intermediate_path = load_path
         .as_ref()
         .to_str()?
-        .rsplit_once('0')
+        .rsplit_once('.')
         .map(|(before, _after)| before.to_string() + ".jpg")?;
 
     let mut child = Command::new("ffmpegthumbnailer")
@@ -64,20 +80,17 @@ where
     }
 
     if ext == "heic" || ext == "heif" {
-        if let Some(img) = read_heic_image(&load_path) {
-            return save_image(&save_path, img);
-        }
-        return false;
+        return generate_heic_thumbnail(load_path.as_ref(), save_path.as_ref()).is_some();
     }
 
     if let Ok(img) = image::open(&load_path) {
-        return save_image(&save_path, img);
+        return resize_and_save_image(&save_path, img);
     }
 
     false
 }
 
-fn save_image<R>(save_path: R, img: DynamicImage) -> bool
+fn resize_and_save_image<R>(save_path: R, img: DynamicImage) -> bool
 where
     R: AsRef<Path>,
 {

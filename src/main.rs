@@ -135,8 +135,13 @@ async fn main() -> std::io::Result<()> {
 
     if vars.use_https {
         let mut ssl_builder = SslAcceptor::mozilla_intermediate_v5(SslMethod::tls())?;
-        ssl_builder.set_private_key_file(vars.ssl_private_key_path, SslFiletype::PEM)?;
-        ssl_builder.set_certificate_chain_file(vars.ssl_certs_path)?;
+        ssl_builder.set_private_key_file(
+            vars.ssl_private_key_path
+                .expect("SSL_PRIVATE_KEY_PATH is missing"),
+            SslFiletype::PEM,
+        )?;
+        ssl_builder
+            .set_certificate_chain_file(vars.ssl_certs_path.expect("SSL_CERTS_PATH is missing"))?;
 
         server
             .bind_openssl(("127.0.0.1", vars.server_port), ssl_builder)?
