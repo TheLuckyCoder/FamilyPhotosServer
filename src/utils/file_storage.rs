@@ -9,12 +9,20 @@ pub struct FileStorage {
 impl FileStorage {
     pub fn new(path: String) -> FileStorage {
         let base_path = Path::new(path.as_str()).to_owned();
+        let thumbnail_path = base_path.with_file_name(".thumbnail/");
 
         if !base_path.exists() {
             fs::create_dir_all(base_path.as_path())
                 .expect("Could not create the base storage path");
         } else {
             assert!(base_path.is_dir());
+        }
+
+        if !thumbnail_path.exists() {
+            fs::create_dir_all(thumbnail_path.as_path())
+                .expect("Could not create the .thumbnail folder");
+        } else {
+            assert!(thumbnail_path.is_dir());
         }
 
         FileStorage { base_path }

@@ -57,6 +57,21 @@ impl Photo {
     }
 
     pub fn partial_thumbnail_path(&self) -> String {
-        format!(".thumbnail/{}.webp", self.id)
+        let special_extension = match self.name.rsplit_once('.') {
+            None => None,
+            Some((_before, after)) => {
+                if after == "heic" || after == "heif" {
+                    Some(after)
+                } else {
+                    None
+                }
+            }
+        };
+
+        format!(
+            ".thumbnail/{}.{}",
+            self.id,
+            special_extension.unwrap_or("webp")
+        )
     }
 }

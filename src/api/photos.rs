@@ -1,7 +1,6 @@
 use std::borrow::Borrow;
 use std::fs::File;
 use std::io::Write;
-use std::time::Duration;
 
 use actix::Addr;
 use actix_files::NamedFile;
@@ -80,15 +79,14 @@ async fn base_thumbnail_photo(state: &AppState, user_id: i64, photo_id: i64) -> 
     let thumbnail_path_clone = thumbnail_path.clone();
 
     let thumbnail_generated = thumbnail_path.exists()
-        || actix_web::rt::time::timeout(
-            Duration::from_secs(60),
-            web::block(move || generate_thumbnail(photo_path_clone, thumbnail_path_clone)),
-        )
-        .await
-        .map_err(|_| StatusError::create("Thumbnail took too long to generate"))??;
+        || web::block(move || generate_thumbnail(photo_path_clone, thumbnail_path_clone)).await?;
 
     if !thumbnail_generated {
-        log::error!("Failed to generate thumbnail for photo {}", photo_id);
+        log::error!(
+            "Failed to generate thumbnail for photo {} - {}",
+            photo_id,
+            photo_path.display()
+        );
     }
 
     let path = if thumbnail_generated {

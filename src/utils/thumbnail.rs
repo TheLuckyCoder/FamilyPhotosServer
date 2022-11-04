@@ -9,31 +9,16 @@ use image::DynamicImage;
 
 const THUMBNAIL_TARGET_SIZE: u32 = 400;
 
-fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> Option<()> {
-    let intermediate_path = load_path
-        .to_str()?
-        .rsplit_once('.')
-        .map(|(before, _after)| before.to_string() + ".png")?;
-
-    let mut child = Command::new("heif-convert")
-        .arg("-q 100")
+fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> std::io::Result<()> {
+    Command::new("heif-thumbnailer")
+        .arg("-s")
+        .arg(THUMBNAIL_TARGET_SIZE.to_string())
         .arg(load_path)
-        .arg(&intermediate_path)
-        .spawn()
-        .ok()?;
+        .arg(save_path)
+        .spawn()?
+        .wait()?;
 
-    if !child.wait().ok()?.success() {
-        log::warn!("Failed to generate thumbnail for {}", load_path.display());
-    }
-
-    if let Ok(img) = image::open(&intermediate_path) {
-        fs::remove_file(intermediate_path).ok()?;
-        if resize_and_save_image(save_path, img) {
-            return Some(());
-        }
-    }
-
-    None
+    Ok(())
 }
 
 fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path: R) -> Option<()> {
@@ -41,7 +26,7 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path:
         "Generating thumbnail for video {}",
         load_path.as_ref().display()
     );
-    let intermediate_path = load_path
+    let intermediate_path = save_path
         .as_ref()
         .to_str()?
         .rsplit_once('.')
@@ -53,15 +38,15 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path:
         .arg("-o")
         .arg(&intermediate_path)
         .arg("-s")
-        .arg(THUMBNAIL_TARGET_SIZE.to_string())
+        .arg((THUMBNAIL_TARGET_SIZE + 150).to_string())
         .arg("-a") // Make it square
         .spawn()
         .ok()?;
 
-    child.wait().expect("Failed to wait on ffmpegthumbnailer");
+    child.wait().ok()?;
 
     if let Ok(img) = image::open(&intermediate_path) {
-        fs::remove_file(&intermediate_path).ok()?;
+        fs::remove_file(intermediate_path).ok()?;
         img.save(save_path).ok()
     } else {
         None
@@ -80,7 +65,13 @@ where
     }
 
     if ext == "heic" || ext == "heif" {
-        return generate_heic_thumbnail(load_path.as_ref(), save_path.as_ref()).is_some();
+        return match generate_heic_thumbnail(load_path.as_ref(), save_path.as_ref()) {
+            Ok(_) => true,
+            Err(e) => {
+                log::error!("Error generating heic thumbnail {e}");
+                false
+            }
+        };
     }
 
     if let Ok(img) = image::open(&load_path) {

@@ -143,11 +143,13 @@ async fn main() -> std::io::Result<()> {
         ssl_builder
             .set_certificate_chain_file(vars.ssl_certs_path.expect("SSL_CERTS_PATH is missing"))?;
 
+        log::info!("Server configured successfully in HTTPS mode");
         server
             .bind_openssl(("127.0.0.1", vars.server_port), ssl_builder)?
             .run()
             .await
     } else {
+        log::info!("Server configured successfully in HTTP mode");
         server.bind(("127.0.0.1", vars.server_port))?.run().await
     }
 }
