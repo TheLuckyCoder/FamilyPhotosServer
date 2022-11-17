@@ -1,6 +1,6 @@
 [package]
 name = "familyphotos"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 
 [profile.release]
@@ -27,6 +27,7 @@ rand_hc = "0.3"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 lazy_static = "1"
 regex = "1"
+wait-timeout = "0.2"
 kamadak-exif = "0.5"
 base64 = "0.13"
 sha2 = "0.10"

@@ -2,23 +2,31 @@ use std::cmp::max;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
 
 use actix_files::file_extension_to_mime;
 use image::imageops::FilterType;
 use image::DynamicImage;
+use wait_timeout::ChildExt;
 
 const THUMBNAIL_TARGET_SIZE: u32 = 400;
 
-fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> std::io::Result<()> {
-    Command::new("heif-thumbnailer")
+fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> std::io::Result<bool> {
+    let mut child = Command::new("heif-thumbnailer")
         .arg("-s")
         .arg(THUMBNAIL_TARGET_SIZE.to_string())
         .arg(load_path)
         .arg(save_path)
-        .spawn()?
-        .wait()?;
+        .spawn()?;
 
-    Ok(())
+    match child.wait_timeout(Duration::from_secs(15)) {
+        Ok(status) => Ok(status.map_or(false, |s| s.success())),
+        Err(e) => {
+            child.kill()?;
+            child.wait()?;
+            Err(e)
+        }
+    }
 }
 
 fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path: R) -> Option<()> {
@@ -43,7 +51,14 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path:
         .spawn()
         .ok()?;
 
-    child.wait().ok()?;
+    match child.wait_timeout(Duration::from_secs(15)) {
+        Ok(status) => status.map(|_| ())?,
+        Err(_) => {
+            child.kill().ok()?;
+            child.wait().ok()?;
+            return None;
+        }
+    }
 
     if let Ok(img) = image::open(&intermediate_path) {
         fs::remove_file(intermediate_path).ok()?;
@@ -66,9 +81,9 @@ where
 
     if ext == "heic" || ext == "heif" {
         return match generate_heic_thumbnail(load_path.as_ref(), save_path.as_ref()) {
-            Ok(_) => true,
+            Ok(result) => result,
             Err(e) => {
-                log::error!("Error generating heic thumbnail {e}");
+                log::error!("Error generating heic/heif thumbnail {e}");
                 false
             }
         };

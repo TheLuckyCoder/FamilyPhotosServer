@@ -90,7 +90,7 @@ impl DataScan {
                 let timestamp = Self::get_json_timestamp(path)
                     .map_or_else(
                         |_| Self::get_exif_timestamp(path),
-                        |t| Some(NaiveDateTime::from_timestamp(t as i64, 0)),
+                        |t| NaiveDateTime::from_timestamp_opt(t as i64, 0),
                     )
                     .or_else(|| Self::get_regex_timestamp(path));
 
