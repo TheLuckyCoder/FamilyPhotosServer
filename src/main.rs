@@ -66,7 +66,7 @@ async fn main() -> std::io::Result<()> {
 
     let app_state = AppState {
         db: manager.clone(),
-        storage: FileStorage::new(vars.storage_path.clone()),
+        storage: FileStorage::new(vars.storage_path),
     };
 
     // Scan the storage directory for new photos in the background
@@ -97,7 +97,7 @@ async fn main() -> std::io::Result<()> {
     log::info!("Starting server on port {}", vars.server_port);
 
     let server = HttpServer::new(move || {
-        let logger = Logger::new(r#"%r %s %b "%{Referer}i" "%{User-Agent}i" %T"#);
+        let logger = Logger::new(r#"%r %s %b "%{User-Agent}i" %T"#);
         let auth = HttpAuthentication::basic(any_user_auth_validator);
 
         App::new()

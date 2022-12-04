@@ -81,17 +81,14 @@ async fn base_thumbnail_photo(state: &AppState, user_id: i64, photo_id: i64) -> 
     let thumbnail_generated = thumbnail_path.exists()
         || web::block(move || generate_thumbnail(photo_path_clone, thumbnail_path_clone)).await?;
 
-    if !thumbnail_generated {
+    let path = if thumbnail_generated {
+        thumbnail_path
+    } else {
         log::error!(
             "Failed to generate thumbnail for photo {} - {}",
             photo_id,
             photo_path.display()
         );
-    }
-
-    let path = if thumbnail_generated {
-        thumbnail_path
-    } else {
         photo_path
     };
 
@@ -262,7 +259,7 @@ pub async fn change_photo_location(
             .map_err(StatusError::create)?,
     );
 
-    match db.send(UpdatePhoto(changed_photo)).await {
+    match db.send(UpdatePhoto(changed_photo.clone())).await {
         Ok(Ok(_)) => {}
         _ => {
             return Err(StatusError::create(
@@ -272,7 +269,7 @@ pub async fn change_photo_location(
     };
 
     if storage.delete_file(photo.partial_path(&user).map_err(StatusError::create)?) {
-        Ok(HttpResponse::Ok())
+        Ok(HttpResponse::Ok().json(changed_photo))
     } else {
         Err(StatusError::create("File could not be deleted"))
     }

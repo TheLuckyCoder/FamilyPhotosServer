@@ -9,7 +9,7 @@ use image::imageops::FilterType;
 use image::DynamicImage;
 use wait_timeout::ChildExt;
 
-const THUMBNAIL_TARGET_SIZE: u32 = 400;
+const THUMBNAIL_TARGET_SIZE: u32 = 500;
 
 fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> std::io::Result<bool> {
     let mut child = Command::new("heif-thumbnailer")
@@ -40,16 +40,18 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path:
         .rsplit_once('.')
         .map(|(before, _after)| before.to_string() + ".jpg")?;
 
-    let mut child = Command::new("ffmpegthumbnailer")
+    let mut command = Command::new("ffmpegthumbnailer");
+    command
         .arg("-i")
-        .arg(load_path.as_ref().as_os_str())
+        .arg(load_path.as_ref())
         .arg("-o")
-        .arg(&intermediate_path)
+        .arg(Path::new(&intermediate_path))
         .arg("-s")
-        .arg((THUMBNAIL_TARGET_SIZE + 150).to_string())
-        .arg("-a") // Make it square
-        .spawn()
-        .ok()?;
+        .arg(THUMBNAIL_TARGET_SIZE.to_string())
+        .arg("-a"); // Make it square
+
+    println!("{:?}", &command);
+    let mut child = command.spawn().ok()?;
 
     match child.wait_timeout(Duration::from_secs(15)) {
         Ok(status) => status.map(|_| ())?,
