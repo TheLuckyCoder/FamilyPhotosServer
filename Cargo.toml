@@ -29,6 +29,6 @@ lazy_static = "1"
 regex = "1"
 wait-timeout = "0.2"
 kamadak-exif = "0.5"
-base64 = "0.13"
+base64 = "0.20"
 sha2 = "0.10"
 image = { version = "0.24", default-features = false, features = ["gif", "jpeg", "png", "webp", "hdr", "webp-encoder"] }
