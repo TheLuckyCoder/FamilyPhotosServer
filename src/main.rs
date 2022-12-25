@@ -77,7 +77,7 @@ async fn main() -> std::io::Result<()> {
             let data_scan = DataScan::scan(&app_state_copy).await;
             data_scan.update_database(&app_state_copy).await;
 
-            println!(
+            log::info!(
                 "Photos scanning completed in {} seconds",
                 instant.elapsed().as_secs()
             );

@@ -10,6 +10,7 @@ use actix_files::file_extension_to_mime;
 use chrono::NaiveDateTime;
 use exif::{Field, In, Tag, Value};
 use lazy_static::lazy_static;
+use rayon::prelude::*;
 use regex::Regex;
 use serde::Deserialize;
 use walkdir::WalkDir;
@@ -46,24 +47,10 @@ impl DataScan {
                 .collect::<Vec<_>>()
         );
 
-        let results = std::thread::scope(|scope| {
-            let threads = users
-                .into_iter()
-                .map(|user| scope.spawn(move || Self::scan_user_photos(storage, user)))
-                .collect::<Vec<_>>(); // It is not unnecessary as we allow the threads to run in parallel
-
-            threads
-                .into_iter()
-                .map(|thread| thread.join())
-                .filter_map(|result| match result {
-                    Ok(user_photos) => Some(user_photos),
-                    Err(err) => {
-                        println!("{:?}", err);
-                        None
-                    }
-                })
-                .collect::<Vec<_>>()
-        });
+        let results = users
+            .into_par_iter()
+            .map(|user| Self::scan_user_photos(storage, user))
+            .collect::<Vec<_>>();
 
         DataScan { results }
     }
@@ -121,7 +108,7 @@ impl DataScan {
             }
         }
 
-        println!("Finished scanning for {}", user.user_name);
+        log::info!("Finished scanning for {}", user.user_name);
 
         (user, photos)
     }
