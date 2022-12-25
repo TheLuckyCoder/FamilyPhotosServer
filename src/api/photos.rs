@@ -12,7 +12,7 @@ use chrono::naive::serde::ts_milliseconds;
 use futures_util::TryStreamExt as _;
 use serde::Deserialize;
 
-use crate::db::photos::{CreatePhoto, DeletePhoto, GetPhoto, GetPhotos, UpdatePhoto};
+use crate::db::photos::{InsertPhoto, DeletePhoto, GetPhoto, GetPhotos, UpdatePhoto};
 use crate::db::users::GetUser;
 use crate::db::DbActor;
 use crate::model::photo::{Photo, PhotoBody};
@@ -146,7 +146,7 @@ async fn base_upload_photo(
         }
     }
 
-    match db.send(CreatePhoto(new_photo.unwrap())).await {
+    match db.send(InsertPhoto(new_photo.unwrap())).await {
         Ok(Ok(photo)) => {
             if photo.owner != user_id {
                 Err(StatusError::create_status(

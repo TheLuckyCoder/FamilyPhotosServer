@@ -1,10 +1,12 @@
 use std::cmp::max;
 use std::fs;
+use std::io::BufReader;
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
 use actix_files::file_extension_to_mime;
+use exif::{In, Tag};
 use image::imageops::FilterType;
 use image::DynamicImage;
 use wait_timeout::ChildExt;
@@ -91,20 +93,47 @@ where
         };
     }
 
+    let exif_orientation = read_exif_orientation(load_path.as_ref());
+
     if let Ok(img) = image::open(&load_path) {
-        return resize_and_save_image(&save_path, img);
+        return resize_and_save_image(&save_path, img, exif_orientation);
     }
 
     false
 }
 
-fn resize_and_save_image<R>(save_path: R, img: DynamicImage) -> bool
+fn read_exif_orientation(path: &Path) -> Option<u32> {
+    let mime = file_extension_to_mime(path.extension()?.to_str()?);
+    if mime.type_() != "image" {
+        return None;
+    }
+
+    let file = fs::File::open(path).ok()?;
+    let mut bufreader = BufReader::new(&file);
+    let reader = exif::Reader::new()
+        .read_from_container(&mut bufreader)
+        .ok()?;
+
+    if let Some(orientation) = reader.get_field(Tag::Orientation, In::PRIMARY) {
+        return orientation.value.get_uint(0);
+    }
+
+    None
+}
+
+fn resize_and_save_image<R>(save_path: R, img: DynamicImage, orientation: Option<u32>) -> bool
 where
     R: AsRef<Path>,
 {
     let (width, height) = resize_dimensions_fill(img.width(), img.height());
 
-    let thumbnail = img.resize_exact(width, height, FilterType::Nearest);
+    let mut thumbnail = img.resize_exact(width, height, FilterType::Nearest);
+    match orientation {
+        Some(3) => thumbnail = thumbnail.rotate180(),
+        Some(6) => thumbnail = thumbnail.rotate90(),
+        Some(8) => thumbnail = thumbnail.rotate270(),
+        _ => {}
+    };
     thumbnail.save(save_path).is_ok()
 }
 

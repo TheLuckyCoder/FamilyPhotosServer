@@ -21,11 +21,11 @@ pub struct GetPhoto {
 
 #[derive(Message)]
 #[rtype(result = "QueryResult<Photo>")]
-pub struct CreatePhoto(pub PhotoBody);
+pub struct InsertPhoto(pub PhotoBody);
 
 #[derive(Message)]
 #[rtype(result = "QueryResult<usize>")]
-pub struct CreatePhotos(pub Vec<Photo>);
+pub struct InsertPhotos(pub Vec<Photo>);
 
 #[derive(Message)]
 #[rtype(result = "QueryResult<Photo>")]
@@ -67,10 +67,10 @@ impl Handler<GetPhoto> for DbActor {
     }
 }
 
-impl Handler<CreatePhoto> for DbActor {
+impl Handler<InsertPhoto> for DbActor {
     type Result = QueryResult<Photo>;
 
-    fn handle(&mut self, msg: CreatePhoto, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: InsertPhoto, _: &mut Self::Context) -> Self::Result {
         let body = msg.0;
         let generated_id = {
             let rng = &mut self.1.lock().unwrap();
@@ -93,10 +93,10 @@ impl Handler<CreatePhoto> for DbActor {
     }
 }
 
-impl Handler<CreatePhotos> for DbActor {
+impl Handler<InsertPhotos> for DbActor {
     type Result = QueryResult<usize>;
 
-    fn handle(&mut self, msg: CreatePhotos, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: InsertPhotos, _: &mut Self::Context) -> Self::Result {
         let rng = &mut self.1.lock().unwrap();
 
         let new_photos = msg

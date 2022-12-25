@@ -59,7 +59,7 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
 
     let manager = SyncArbiter::start(2, move || {
-        let pool = get_pool(vars.database_url.as_str());
+        let pool = get_pool(vars.database_url.clone());
         let rng = Mutex::new(Hc128Rng::from_entropy());
         DbActor(pool, rng)
     });

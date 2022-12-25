@@ -14,7 +14,7 @@ use regex::Regex;
 use serde::Deserialize;
 use walkdir::WalkDir;
 
-use crate::db::photos::{CreatePhotos, DeletePhotos, GetPhotos};
+use crate::db::photos::{DeletePhotos, GetPhotos, InsertPhotos};
 use crate::model::photo::Photo;
 use crate::{AppState, FileStorage, GetUsers, User};
 
@@ -155,7 +155,7 @@ impl DataScan {
                 );
 
                 for chunk in found_photos.chunks(512) {
-                    db.send(CreatePhotos(Vec::from(chunk)))
+                    db.send(InsertPhotos(Vec::from(chunk)))
                         .await
                         .unwrap()
                         .expect("Failed to insert photos");

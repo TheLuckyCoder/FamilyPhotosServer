@@ -7,7 +7,7 @@ use crate::DbActor;
 
 #[derive(Message)]
 #[rtype(result = "QueryResult<User>")]
-pub struct CreateUser(pub User);
+pub struct InsertUser(pub User);
 
 #[derive(Message)]
 #[rtype(result = "QueryResult<Vec<User>>")]
@@ -20,10 +20,10 @@ pub enum GetUser {
     UserName(String),
 }
 
-impl Handler<CreateUser> for DbActor {
+impl Handler<InsertUser> for DbActor {
     type Result = QueryResult<User>;
 
-    fn handle(&mut self, msg: CreateUser, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: InsertUser, _: &mut Self::Context) -> Self::Result {
         let mut conn = self.0.get().expect("Unable to get a connection");
 
         diesel::insert_into(users)
