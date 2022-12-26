@@ -87,7 +87,7 @@ where
         return match generate_heic_thumbnail(load_path.as_ref(), save_path.as_ref()) {
             Ok(result) => result,
             Err(e) => {
-                log::error!("Error generating heic/heif thumbnail {e}");
+                log::error!("Error generating heic/heif thumbnail: {e}");
                 false
             }
         };

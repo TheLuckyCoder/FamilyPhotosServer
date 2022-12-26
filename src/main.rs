@@ -29,6 +29,7 @@ mod api;
 mod db;
 mod model;
 mod schema;
+mod thumbnail;
 mod utils;
 
 static mut USERS: Vec<User> = Vec::new();
@@ -77,11 +78,18 @@ async fn main() -> std::io::Result<()> {
             let data_scan = DataScan::scan(&app_state_copy).await;
             data_scan.update_database(&app_state_copy).await;
 
-            log::info!(
+            log::debug!(
                 "Photos scanning completed in {} seconds",
                 instant.elapsed().as_secs()
             );
         });
+    }
+
+    if vars.generate_thumbnails_background {
+        match thumbnail::generate_background(&app_state.clone()).await {
+            Ok(_) => log::info!("Background thumbnail generation started"),
+            Err(e) => log::error!("Could not start background thumbnail generation: {e}"),
+        }
     }
 
     {

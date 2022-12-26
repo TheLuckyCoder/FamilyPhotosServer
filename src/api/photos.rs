@@ -17,9 +17,9 @@ use crate::db::users::GetUser;
 use crate::db::DbActor;
 use crate::model::photo::{Photo, PhotoBody};
 use crate::model::user::User;
-use crate::utils::status_error::StatusError;
-use crate::utils::thumbnail::generate_thumbnail;
+use crate::api::status_error::StatusError;
 use crate::AppState;
+use crate::thumbnail::generate_thumbnail;
 
 const PUBLIC_USER_ID: i64 = 1;
 
@@ -134,7 +134,7 @@ async fn base_upload_photo(
         };
 
         let filepath = storage.resolve(format!("{}/{}{}", user.user_name, folder, file_name));
-        println!("Uploading file to {}", filepath.to_string_lossy());
+        log::info!("Uploading file to {}", filepath.to_string_lossy());
 
         // File::create is blocking operation, use thread pool
         let mut f = web::block(|| File::create(filepath)).await??;
@@ -150,7 +150,7 @@ async fn base_upload_photo(
         Ok(Ok(photo)) => {
             if photo.owner != user_id {
                 Err(StatusError::create_status(
-                    format!("Photo does not belong to user {}", user_id),
+                    format!("Photo does not belong to user {user_id}"),
                     StatusCode::BAD_REQUEST,
                 ))
             } else {

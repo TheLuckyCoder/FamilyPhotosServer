@@ -39,7 +39,7 @@ impl DataScan {
             Ok(Ok(users)) => users,
             _ => panic!("Could not load users"),
         };
-        println!(
+        log::debug!(
             "Started scanning user's photos: {:?}",
             users
                 .iter()
@@ -124,7 +124,7 @@ impl DataScan {
             .collect();
 
         for (user, mut found_photos) in self.results {
-            println!(
+            log::info!(
                 "Scanned {} photos in user {}",
                 found_photos.len(),
                 user.user_name
@@ -135,7 +135,7 @@ impl DataScan {
             found_photos.retain(|photo| !existing_photos_names.contains(&photo.full_name()));
 
             if !found_photos.is_empty() {
-                println!(
+                log::info!(
                     "Adding {} new photos to user {}",
                     found_photos.len(),
                     user.user_name
@@ -161,7 +161,7 @@ impl DataScan {
                 .collect::<Vec<i64>>();
 
             if !removed_photos.is_empty() {
-                println!(
+                log::info!(
                     "Removing {} photos from user {}",
                     removed_photos.len(),
                     user.user_name
