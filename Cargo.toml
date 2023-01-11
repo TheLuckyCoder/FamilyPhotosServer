@@ -9,7 +9,7 @@ lto = "thin"
 
 [dependencies]
 actix = "0.13"
-actix-web = { version = "4.2", default-features = false, features = ["macros", "openssl"] }
+actix-web = { version = "4", default-features = false, features = ["macros", "openssl"] }
 actix-web-httpauth = "0.8"
 actix-files = "0.6"
 openssl = "0.10"
@@ -18,7 +18,7 @@ chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "r2d2", "postgres", "chrono"] }
-env_logger = "0.9"
+env_logger = { version = "0.10", default-features = false, features = ["humantime", "color"] }
 log = "0.4"
 dotenv = "0"
 walkdir = "2.3"
