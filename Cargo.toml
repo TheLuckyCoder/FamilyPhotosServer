@@ -13,7 +13,7 @@ actix-web = { version = "4", default-features = false, features = ["macros", "op
 actix-web-httpauth = "0.8"
 actix-files = "0.6"
 openssl = "0.10"
-actix-multipart = "0.4"
+actix-multipart = "0.5"
 chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
