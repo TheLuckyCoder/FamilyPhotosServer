@@ -104,6 +104,7 @@ impl DataScan {
                     } else {
                         None
                     },
+                    caption: None,
                 })
             }
         }

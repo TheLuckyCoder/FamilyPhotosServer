@@ -27,6 +27,7 @@ pub struct Photo {
     pub time_created: chrono::NaiveDateTime,
     pub file_size: i64,
     pub folder: Option<String>,
+    pub caption: Option<String>,
 }
 
 #[derive(Debug, Clone)]

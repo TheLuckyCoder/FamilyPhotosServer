@@ -8,6 +8,7 @@ diesel::table! {
         time_created -> Timestamp,
         file_size -> Int8,
         folder -> Nullable<Text>,
+        caption -> Nullable<Text>,
     }
 }
 

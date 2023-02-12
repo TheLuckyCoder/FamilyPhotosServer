@@ -83,6 +83,7 @@ impl Handler<InsertPhoto> for DbActor {
             time_created: body.time_created,
             file_size: body.file_size,
             folder: body.folder,
+            caption: None,
         };
 
         let mut conn = self.0.get().expect("Unable to get a connection");
@@ -109,6 +110,7 @@ impl Handler<InsertPhotos> for DbActor {
                 time_created: body.time_created,
                 file_size: body.file_size,
                 folder: body.folder,
+                caption: None,
             })
             .collect::<Vec<Photo>>();
 

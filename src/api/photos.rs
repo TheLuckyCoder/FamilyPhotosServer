@@ -12,21 +12,22 @@ use chrono::naive::serde::ts_milliseconds;
 use futures_util::TryStreamExt as _;
 use serde::Deserialize;
 
-use crate::db::photos::{InsertPhoto, DeletePhoto, GetPhoto, GetPhotos, UpdatePhoto};
+use crate::api::status_error::StatusError;
+use crate::db::photos::{DeletePhoto, GetPhoto, GetPhotos, InsertPhoto, UpdatePhoto};
 use crate::db::users::GetUser;
 use crate::db::DbActor;
 use crate::model::photo::{Photo, PhotoBody};
 use crate::model::user::User;
-use crate::api::status_error::StatusError;
-use crate::AppState;
 use crate::thumbnail::generate_thumbnail;
+use crate::utils::read_exif;
+use crate::AppState;
 
 const PUBLIC_USER_ID: i64 = 1;
 
 async fn get_user(db: &Addr<DbActor>, user_id: i64) -> Result<User> {
     match db.send(GetUser::Id(user_id)).await {
         Ok(Ok(user)) => Ok(user),
-        _ => Err(StatusError::create_status(
+        _ => Err(StatusError::new_status(
             "Could not find user",
             StatusCode::NOT_FOUND,
         )),
@@ -41,7 +42,7 @@ async fn get_user_and_photo(
     let photo: Photo = match db.send(GetPhoto { id: photo_id }).await {
         Ok(Ok(photo)) => photo,
         _ => {
-            return Err(StatusError::create_status(
+            return Err(StatusError::new_status(
                 "Could not find photo",
                 StatusCode::NOT_FOUND,
             ))
@@ -124,7 +125,7 @@ async fn base_upload_photo(
             owner: user_id,
             name: file_name.to_string(),
             time_created: query.time_created,
-            file_size: 0,
+            file_size: query.file_size as i64,
             folder: query.folder_name.clone(),
         });
 
@@ -149,7 +150,7 @@ async fn base_upload_photo(
     match db.send(InsertPhoto(new_photo.unwrap())).await {
         Ok(Ok(photo)) => {
             if photo.owner != user_id {
-                Err(StatusError::create_status(
+                Err(StatusError::new_status(
                     format!("Photo does not belong to user {user_id}"),
                     StatusCode::BAD_REQUEST,
                 ))
@@ -161,6 +162,33 @@ async fn base_upload_photo(
             "Something went wrong creating the photo",
         )),
     }
+}
+
+async fn base_update_photo_caption(
+    state: &AppState,
+    user_id: i64,
+    photo_id: i64,
+    new_caption: Option<String>,
+) -> impl Responder {
+    let db = state.db.clone();
+    let (_, photo) = get_user_and_photo(&db, user_id, photo_id).await?;
+
+    let changed_photo = {
+        let mut new = photo.clone();
+        new.caption = new_caption;
+        new
+    };
+
+    match db.send(UpdatePhoto(changed_photo.clone())).await {
+        Ok(Ok(_)) => {}
+        _ => {
+            return Err(StatusError::create(
+                "Something went wrong updating the photo caption",
+            ))
+        }
+    };
+
+    Ok(HttpResponse::Ok().json(changed_photo))
 }
 
 async fn base_delete_photo(state: &AppState, user_id: i64, photo_id: i64) -> Result<String> {
@@ -176,6 +204,24 @@ async fn base_delete_photo(state: &AppState, user_id: i64, photo_id: i64) -> Res
         }
     } else {
         Err(StatusError::create("File could not be deleted"))
+    }
+}
+
+async fn base_get_photo_exif(state: &AppState, user_id: i64, photo_id: i64) -> impl Responder {
+    let db = state.db.clone();
+    let storage = state.storage.borrow();
+
+    let (user, photo) = get_user_and_photo(&db, user_id, photo_id).await?;
+
+    let path = storage.resolve(photo.partial_path(&user).map_err(StatusError::create)?);
+    let exif = web::block(move || read_exif(path)).await?;
+
+    match exif {
+        Some(exif) => Ok(HttpResponse::Ok().json(exif)),
+        None => Err(StatusError::new_status(
+            "Exif data not found",
+            StatusCode::NOT_FOUND,
+        )),
     }
 }
 
@@ -203,12 +249,19 @@ pub async fn download_photo(state: Data<AppState>, path: Path<(i64, i64)>) -> im
     base_download_photo(state.get_ref(), user_id, photo_id).await
 }
 
+#[get("/{user_id}/exif/{photo_id}")]
+pub async fn get_photo_exif(state: Data<AppState>, path: Path<(i64, i64)>) -> impl Responder {
+    let (user_id, photo_id) = path.into_inner();
+    base_get_photo_exif(state.get_ref(), user_id, photo_id).await
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadData {
     #[serde(with = "ts_milliseconds")]
     time_created: chrono::NaiveDateTime,
     folder_name: Option<String>,
+    file_size: usize,
 }
 
 #[post("/{user_id_path}/upload")]
@@ -225,6 +278,16 @@ pub async fn upload_photo(
 pub async fn delete_photo(state: Data<AppState>, path: Path<(i64, i64)>) -> impl Responder {
     let (user_id, photo_id) = path.into_inner();
     base_delete_photo(state.get_ref(), user_id, photo_id).await
+}
+
+#[post("/{user_id}/update_caption/{photo_id}")]
+pub async fn update_photo_caption(
+    state: Data<AppState>,
+    path: Path<(i64, i64)>,
+    query: Query<Option<String>>,
+) -> impl Responder {
+    let (user_id, photo_id) = path.into_inner();
+    base_update_photo_caption(state.get_ref(), user_id, photo_id, query.into_inner()).await
 }
 
 #[derive(Deserialize)]
@@ -306,6 +369,21 @@ pub async fn public_upload_photo(
     payload: Multipart,
 ) -> impl Responder {
     base_upload_photo(state.get_ref(), PUBLIC_USER_ID, query.into_inner(), payload).await
+}
+
+#[post("/update_caption/{photo_id}")]
+pub async fn public_update_photo_caption(
+    state: Data<AppState>,
+    path: Path<i64>,
+    query: Query<Option<String>>,
+) -> impl Responder {
+    base_update_photo_caption(
+        state.get_ref(),
+        PUBLIC_USER_ID,
+        path.into_inner(),
+        query.into_inner(),
+    )
+    .await
 }
 
 #[delete("/delete/{photo_id}")]

@@ -1,7 +1,7 @@
+use actix_web::http::StatusCode;
+use actix_web::{error, Error};
 use std::fmt;
 use std::fmt::Formatter;
-use actix_web::{Error, error};
-use actix_web::http::StatusCode;
 
 #[derive(Debug)]
 pub struct StatusError {
@@ -17,7 +17,7 @@ impl StatusError {
         })
     }
 
-    pub fn create_status<S: Into<String>>(message: S, status_code: StatusCode) -> Error {
+    pub fn new_status<S: Into<String>>(message: S, status_code: StatusCode) -> Error {
         Error::from(Self {
             message: message.into(),
             status_code,

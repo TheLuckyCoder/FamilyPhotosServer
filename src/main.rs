@@ -10,6 +10,7 @@ use actix_web::{dev::ServiceRequest, middleware, web, App, Error, HttpResponse, 
 use actix_web_httpauth::extractors::{basic, AuthenticationError};
 use actix_web_httpauth::headers::www_authenticate::basic::Basic;
 use actix_web_httpauth::middleware::HttpAuthentication;
+use env_logger::Env;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use rand::prelude::*;
 use rand_hc::Hc128Rng;
@@ -57,7 +58,9 @@ async fn any_user_auth_validator(
 async fn main() -> std::io::Result<()> {
     EnvVariables::init();
     let vars = EnvVariables::get_all();
-    env_logger::init();
+    env_logger::Builder::from_env(Env::default())
+        .format_timestamp(None)
+        .init();
 
     let manager = SyncArbiter::start(2, move || {
         let pool = get_pool(vars.database_url.clone());
@@ -125,7 +128,9 @@ async fn main() -> std::io::Result<()> {
                     .service(photos_list)
                     .service(thumbnail_photo)
                     .service(download_photo)
+                    .service(get_photo_exif)
                     .service(upload_photo)
+                    .service(update_photo_caption)
                     .service(delete_photo)
                     .service(change_photo_location),
             )
@@ -136,6 +141,7 @@ async fn main() -> std::io::Result<()> {
                     .service(public_thumbnail_photo)
                     .service(public_download_photo)
                     .service(public_upload_photo)
+                    .service(public_update_photo_caption)
                     .service(public_delete_photo),
             )
             .app_data(Data::new(app_state.clone()))
