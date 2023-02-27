@@ -14,7 +14,7 @@ actix-web = { version = "4", default-features = false, features = ["macros", "op
 actix-web-httpauth = "0.8"
 actix-files = "0.6"
 openssl = "0.10"
-actix-multipart = "0.5"
+actix-multipart = "0.6"
 
 # Database
 diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "r2d2", "postgres", "chrono"] }
