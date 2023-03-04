@@ -33,7 +33,7 @@ rand_hc = "0.3"
 
 # Utils
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
-rayon = "1.6"
+rayon = "1.7"
 lazy_static = "1"
 regex = "1"
 wait-timeout = "0.2"
