@@ -260,8 +260,8 @@ pub async fn get_photo_exif(state: Data<AppState>, path: Path<(i64, i64)>) -> im
 pub struct UploadData {
     #[serde(with = "ts_milliseconds")]
     time_created: chrono::NaiveDateTime,
-    folder_name: Option<String>,
     file_size: usize,
+    folder_name: Option<String>,
 }
 
 #[post("/{user_id_path}/upload")]
@@ -371,17 +371,23 @@ pub async fn public_upload_photo(
     base_upload_photo(state.get_ref(), PUBLIC_USER_ID, query.into_inner(), payload).await
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCaptionQuery {
+    new_caption: Option<String>,
+}
+
 #[post("/update_caption/{photo_id}")]
 pub async fn public_update_photo_caption(
     state: Data<AppState>,
     path: Path<i64>,
-    query: Query<Option<String>>,
+    query: Query<UpdateCaptionQuery>,
 ) -> impl Responder {
     base_update_photo_caption(
         state.get_ref(),
         PUBLIC_USER_ID,
         path.into_inner(),
-        query.into_inner(),
+        query.into_inner().new_caption,
     )
     .await
 }
