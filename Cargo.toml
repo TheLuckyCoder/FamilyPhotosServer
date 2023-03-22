@@ -1,6 +1,6 @@
 [package]
 name = "familyphotos"
-version = "2.3.1"
+version = "2.3.2"
 edition = "2021"
 
 [profile.release]
@@ -17,7 +17,8 @@ openssl = "0.10"
 actix-multipart = "0.6"
 
 # Database
-diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "r2d2", "postgres", "chrono"] }
+diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "r2d2", "postgres", "chrono", "without-deprecated"] }
+diesel_migrations = "2.0"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

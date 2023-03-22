@@ -5,6 +5,7 @@ use std::fs;
 use std::io::BufReader;
 use std::path::Path;
 use std::str::from_utf8;
+use std::time::Instant;
 
 use actix_files::file_extension_to_mime;
 use chrono::NaiveDateTime;
@@ -31,7 +32,20 @@ struct GooglePhotoJsonData {
 }
 
 impl DataScan {
-    pub async fn scan(app_state: &AppState) -> DataScan {
+    pub fn run(app_state: AppState) {
+        actix_web::rt::spawn(async move {
+            let instant = Instant::now();
+            let data_scan = DataScan::scan(&app_state).await;
+            data_scan.update_database(&app_state).await;
+
+            log::debug!(
+                "Photos scanning completed in {} seconds",
+                instant.elapsed().as_secs()
+            );
+        });
+    }
+
+    async fn scan(app_state: &AppState) -> DataScan {
         let db = app_state.db.clone();
         let storage = app_state.storage.borrow();
 
@@ -114,7 +128,7 @@ impl DataScan {
         (user, photos)
     }
 
-    pub async fn update_database(self, app_state: &AppState) {
+    async fn update_database(self, app_state: &AppState) {
         let db = app_state.db.clone();
         let storage = app_state.storage.borrow();
 

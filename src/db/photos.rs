@@ -3,7 +3,7 @@ use diesel::prelude::*;
 use rand::prelude::*;
 
 use crate::model::photo::{Photo, PhotoBody};
-use crate::schema::photos::dsl::{id, owner, photos};
+use crate::schema::photos::dsl::{id, owner, photos, time_created};
 use crate::DbActor;
 
 #[derive(Message)]
@@ -50,9 +50,12 @@ impl Handler<GetPhotos> for DbActor {
         let mut conn = self.0.get().expect("Unable to get a connection");
 
         match msg {
-            GetPhotos::All => photos.get_results::<Photo>(&mut conn),
+            GetPhotos::All => photos
+                .order(time_created.desc())
+                .get_results::<Photo>(&mut conn),
             GetPhotos::Owner(owner_id) => photos
                 .filter(owner.eq(owner_id))
+                .order(time_created.desc())
                 .get_results::<Photo>(&mut conn),
         }
     }

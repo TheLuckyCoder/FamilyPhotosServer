@@ -1,8 +1,5 @@
 extern crate diesel;
 
-use std::sync::Mutex;
-use std::time::Instant;
-
 use actix::SyncArbiter;
 use actix_web::middleware::{Logger, TrailingSlash};
 use actix_web::web::Data;
@@ -12,18 +9,18 @@ use actix_web_httpauth::headers::www_authenticate::basic::Basic;
 use actix_web_httpauth::middleware::HttpAuthentication;
 use env_logger::Env;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use rand::prelude::*;
+use rand::{Rng, RngCore, SeedableRng};
 use rand_hc::Hc128Rng;
 
 use crate::api::photos::*;
-use crate::api::users::{get_user, get_users};
+use crate::api::users::*;
 use crate::db::users::GetUsers;
-use crate::db::{get_pool, DbActor};
+use crate::db::DbActor;
 use crate::model::user::User;
 use crate::utils::data_scan::DataScan;
 use crate::utils::env_reader::EnvVariables;
 use crate::utils::file_storage::FileStorage;
-use crate::utils::password_hash::get_hash_from_password;
+use crate::utils::password_hash::{generate_password, get_hash_from_password};
 use crate::utils::AppState;
 
 mod api;
@@ -62,11 +59,8 @@ async fn main() -> std::io::Result<()> {
         .format_timestamp(None)
         .init();
 
-    let manager = SyncArbiter::start(2, move || {
-        let pool = get_pool(vars.database_url.clone());
-        let rng = Mutex::new(Hc128Rng::from_entropy());
-        DbActor(pool, rng)
-    });
+    let manager = SyncArbiter::start(2, move || DbActor::new(vars.database_url.as_str()));
+    log::info!("Database connection pool started");
 
     let app_state = AppState {
         db: manager.clone(),
@@ -76,21 +70,12 @@ async fn main() -> std::io::Result<()> {
     // Scan the storage directory for new photos in the background
     if !vars.skip_scanning {
         let app_state_copy = app_state.clone();
-        actix_web::rt::spawn(async move {
-            let instant = Instant::now();
-            let data_scan = DataScan::scan(&app_state_copy).await;
-            data_scan.update_database(&app_state_copy).await;
-
-            log::debug!(
-                "Photos scanning completed in {} seconds",
-                instant.elapsed().as_secs()
-            );
-        });
+        DataScan::run(app_state_copy);
     }
 
     if vars.generate_thumbnails_background {
         match thumbnail::generate_background(&app_state.clone()).await {
-            Ok(_) => log::info!("Background thumbnail generation started"),
+            Ok(_) => log::info!("Background thumbnail generation finished"),
             Err(e) => log::error!("Could not start background thumbnail generation: {e}"),
         }
     }
@@ -100,8 +85,25 @@ async fn main() -> std::io::Result<()> {
             Ok(Ok(users)) => users,
             _ => panic!("Could not load users"),
         };
+
+        if users.is_empty() {
+            let public_user = User {
+                id: 1,
+                display_name: "Public".to_string(),
+                user_name: "public".to_string(),
+                password: generate_password(),
+            };
+
+            println!(
+                "No users found, creating public user with password: {}",
+                public_user.password
+            );
+
+            users = vec![public_user];
+        }
+
         unsafe {
-            USERS.append(&mut users);
+            USERS = users;
         }
     }
 

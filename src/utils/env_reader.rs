@@ -37,7 +37,10 @@ impl EnvVariables {
             database_url: required_env_var("DATABASE_URL"),
             storage_path: required_env_var("STORAGE_PATH"),
             skip_scanning: optional_env_var("SKIP_SCANNING", false),
-            generate_thumbnails_background: optional_env_var("GENERATE_THUMBNAILS_BACKGROUND", false),
+            generate_thumbnails_background: optional_env_var(
+                "GENERATE_THUMBNAILS_BACKGROUND",
+                false,
+            ),
             use_https: optional_env_var("USE_HTTPS", false),
             ssl_private_key_path: std::env::var("SSL_PRIVATE_KEY_PATH").ok(),
             ssl_certs_path: std::env::var("SSL_CERTS_PATH").ok(),
