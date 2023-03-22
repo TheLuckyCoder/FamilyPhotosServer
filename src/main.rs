@@ -59,7 +59,6 @@ async fn main() -> std::io::Result<()> {
         .init();
 
     let manager = SyncArbiter::start(2, move || DbActor::new(vars.database_url.as_str()));
-    log::info!("Database connection pool started");
 
     let app_state = AppState {
         db: manager.clone(),

@@ -20,12 +20,17 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum UsersCommand {
-    /// Create a new user with a random password
-    Add {
+    /// Create a new user
+    Create {
         #[arg(short, long)]
+        /// The name used for login and in the filesystem
         user_name: String,
         #[arg(short, long)]
+        /// The name visible to the user
         display_name: String,
+        #[arg(short, long)]
+        /// Random password will be generated if not provided
+        password: Option<String>,
     },
     /// List all users
     List,
@@ -47,20 +52,21 @@ pub async fn run_cli(app_state: &AppState) {
 
     match cmd.unwrap() {
         Commands::Users(user_command) => match user_command {
-            UsersCommand::Add {
+            UsersCommand::Create {
                 user_name,
                 display_name,
+                password,
             } => {
                 let user_result = db
                     .send(InsertUser::WithoutId {
                         user_name,
                         display_name,
-                        hashed_password: generate_password(),
+                        hashed_password: password.unwrap_or_else(generate_password),
                     })
                     .await;
 
                 match user_result {
-                    Ok(Ok(user)) => println!("User created: {:?}", user),
+                    Ok(Ok(user)) => println!("User created: {:?}", SimpleUser::from_user(&user)),
                     _ => eprintln!("Error creating user"),
                 }
             }
@@ -74,7 +80,12 @@ pub async fn run_cli(app_state: &AppState) {
                 _ => eprintln!("Error listing users"),
             },
             UsersCommand::Remove { user_name } => {
-                match db.send(DeleteUser{ user_name: user_name.clone() }).await {
+                match db
+                    .send(DeleteUser {
+                        user_name: user_name.clone(),
+                    })
+                    .await
+                {
                     Ok(Ok(_)) => println!("Deleted user with user name: {user_name}"),
                     _ => eprintln!("Failed to remove user with user name: {user_name}"),
                 }
