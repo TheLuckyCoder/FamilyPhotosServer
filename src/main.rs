@@ -9,12 +9,10 @@ use actix_web_httpauth::headers::www_authenticate::basic::Basic;
 use actix_web_httpauth::middleware::HttpAuthentication;
 use env_logger::Env;
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use rand::{Rng, RngCore, SeedableRng};
-use rand_hc::Hc128Rng;
 
-use crate::api::photos::*;
-use crate::api::users::*;
-use crate::db::users::GetUsers;
+use crate::api::photos_api::*;
+use crate::api::users_api::*;
+use crate::db::users::{GetUsers, InsertUser};
 use crate::db::DbActor;
 use crate::model::user::User;
 use crate::utils::data_scan::DataScan;
@@ -24,6 +22,7 @@ use crate::utils::password_hash::{generate_password, get_hash_from_password};
 use crate::utils::AppState;
 
 mod api;
+mod cli;
 mod db;
 mod model;
 mod schema;
@@ -67,6 +66,8 @@ async fn main() -> std::io::Result<()> {
         storage: FileStorage::new(vars.storage_path),
     };
 
+    cli::run_cli(&app_state).await;
+
     // Scan the storage directory for new photos in the background
     if !vars.skip_scanning {
         let app_state_copy = app_state.clone();
@@ -99,7 +100,10 @@ async fn main() -> std::io::Result<()> {
                 public_user.password
             );
 
-            users = vec![public_user];
+            match manager.send(InsertUser::WithId(public_user)).await {
+                Ok(Ok(user)) => users = vec![user],
+                _ => panic!("Failed to create public user"),
+            };
         }
 
         unsafe {
