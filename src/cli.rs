@@ -41,13 +41,16 @@ enum UsersCommand {
     },
 }
 
-pub async fn run_cli(app_state: &AppState) {
+/**
+ * @return true if the program should exit
+ */
+pub async fn run_cli(app_state: &AppState) -> bool {
     let cli = Cli::parse();
     let db = app_state.db.clone();
 
     let cmd = cli.commands;
     if cmd.is_none() {
-        return;
+        return false;
     }
 
     match cmd.unwrap() {
@@ -92,4 +95,6 @@ pub async fn run_cli(app_state: &AppState) {
             }
         },
     }
+
+    true
 }

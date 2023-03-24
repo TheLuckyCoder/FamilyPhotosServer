@@ -1,5 +1,8 @@
 extern crate diesel;
 
+use std::fs::File;
+use std::io::BufReader;
+
 use actix::SyncArbiter;
 use actix_web::middleware::{Logger, TrailingSlash};
 use actix_web::web::Data;
@@ -8,7 +11,8 @@ use actix_web_httpauth::extractors::{basic, AuthenticationError};
 use actix_web_httpauth::headers::www_authenticate::basic::Basic;
 use actix_web_httpauth::middleware::HttpAuthentication;
 use env_logger::Env;
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
+use rustls::{Certificate, PrivateKey, ServerConfig};
+use rustls_pemfile::{certs, pkcs8_private_keys};
 
 use crate::api::photos_api::*;
 use crate::api::users_api::*;
@@ -65,7 +69,9 @@ async fn main() -> std::io::Result<()> {
         storage: FileStorage::new(vars.storage_path),
     };
 
-    cli::run_cli(&app_state).await;
+    if cli::run_cli(&app_state).await {
+        return Ok(());
+    }
 
     // Scan the storage directory for new photos in the background
     if !vars.skip_scanning {
@@ -153,22 +159,58 @@ async fn main() -> std::io::Result<()> {
     });
 
     if vars.use_https {
-        let mut ssl_builder = SslAcceptor::mozilla_intermediate_v5(SslMethod::tls())?;
-        ssl_builder.set_private_key_file(
+        let config = load_rustls_config(
+            vars.ssl_certs_path
+                .expect("SSL_CERTS_PATH variable is missing"),
             vars.ssl_private_key_path
-                .expect("SSL_PRIVATE_KEY_PATH is missing"),
-            SslFiletype::PEM,
+                .expect("SSL_PRIVATE_KEY_PATH variable is missing"),
         )?;
-        ssl_builder
-            .set_certificate_chain_file(vars.ssl_certs_path.expect("SSL_CERTS_PATH is missing"))?;
 
         log::info!("Server configured successfully in HTTPS mode");
         server
-            .bind_openssl(("127.0.0.1", vars.server_port), ssl_builder)?
+            .bind_rustls(("127.0.0.1", vars.server_port), config)?
             .run()
             .await
     } else {
         log::info!("Server configured successfully in HTTP mode");
         server.bind(("127.0.0.1", vars.server_port))?.run().await
     }
+}
+
+fn load_rustls_config(certs_path: String, key_path: String) -> std::io::Result<ServerConfig> {
+    // init server config builder with safe defaults
+    let config = ServerConfig::builder()
+        .with_safe_defaults()
+        .with_no_client_auth();
+
+    // load TLS key/cert files
+    let cert_file = &mut BufReader::new(File::open(certs_path)?);
+    let key_file = &mut BufReader::new(File::open(key_path)?);
+
+    // convert files to key/cert objects
+    let cert_chain = certs(cert_file)
+        .unwrap()
+        .into_iter()
+        .map(Certificate)
+        .collect();
+    let mut keys: Vec<PrivateKey> = pkcs8_private_keys(key_file)
+        .unwrap()
+        .into_iter()
+        .map(PrivateKey)
+        .collect();
+
+    // exit if no keys could be parsed
+    if keys.is_empty() {
+        eprintln!("Could not locate PKCS 8 private keys.");
+        std::process::exit(1);
+    }
+
+    config
+        .with_single_cert(cert_chain, keys.remove(0))
+        .map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Could not load TLS config: {}", e),
+            )
+        })
 }

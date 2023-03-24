@@ -11,11 +11,12 @@ lto = "thin"
 [dependencies]
 # Actix
 actix = "0.13"
-actix-web = { version = "4", default-features = false, features = ["macros", "openssl"] }
+actix-web = { version = "4", default-features = false, features = ["macros", "rustls"] }
 actix-web-httpauth = "0.8"
 actix-files = "0.6"
-openssl = "0.10"
 actix-multipart = "0.6"
+rustls = "0.20"
+rustls-pemfile = "1.0"
 
 # Database
 diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "r2d2", "postgres", "chrono", "without-deprecated"] }
