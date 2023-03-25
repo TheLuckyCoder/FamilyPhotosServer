@@ -33,6 +33,13 @@ mod schema;
 mod thumbnail;
 mod utils;
 
+#[cfg(not(target_env = "msvc"))]
+use tikv_jemallocator::Jemalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 static mut USERS: Vec<User> = Vec::new();
 
 async fn any_user_auth_validator(

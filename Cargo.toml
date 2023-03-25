@@ -52,3 +52,6 @@ sha2 = "0.10"
 # Images
 image = { version = "0.24", default-features = false, features = ["gif", "jpeg", "png", "webp", "hdr", "webp-encoder"] }
 kamadak-exif = "0.5"
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = "0.5"
