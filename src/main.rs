@@ -13,6 +13,8 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use env_logger::Env;
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys};
+#[cfg(not(target_env = "msvc"))]
+use tikv_jemallocator::Jemalloc;
 
 use crate::api::photos_api::*;
 use crate::api::users_api::*;
@@ -32,9 +34,6 @@ mod model;
 mod schema;
 mod thumbnail;
 mod utils;
-
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]

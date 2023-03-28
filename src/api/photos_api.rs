@@ -8,7 +8,6 @@ use actix_multipart::Multipart;
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Path, Query};
 use actix_web::{delete, get, post, web, HttpResponse, Responder, Result};
-use chrono::naive::serde::ts_milliseconds;
 use futures_util::TryStreamExt as _;
 use serde::Deserialize;
 
@@ -258,8 +257,7 @@ pub async fn get_photo_exif(state: Data<AppState>, path: Path<(i64, i64)>) -> im
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadData {
-    #[serde(with = "ts_milliseconds")]
-    time_created: chrono::NaiveDateTime,
+    time_created: time::PrimitiveDateTime,
     file_size: usize,
     folder_name: Option<String>,
 }

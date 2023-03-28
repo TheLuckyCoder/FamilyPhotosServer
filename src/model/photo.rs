@@ -1,4 +1,3 @@
-use chrono::naive::serde::ts_milliseconds;
 use diesel::{AsChangeset, Identifiable, Insertable, Queryable};
 use serde::{Deserialize, Serialize};
 
@@ -23,8 +22,7 @@ pub struct Photo {
     pub id: i64,
     pub owner: i64,
     pub name: String,
-    #[serde(with = "ts_milliseconds")]
-    pub time_created: chrono::NaiveDateTime,
+    pub time_created: time::PrimitiveDateTime,
     pub file_size: i64,
     pub folder: Option<String>,
     pub caption: Option<String>,
@@ -34,7 +32,7 @@ pub struct Photo {
 pub struct PhotoBody {
     pub owner: i64,
     pub name: String,
-    pub time_created: chrono::NaiveDateTime,
+    pub time_created: time::PrimitiveDateTime,
     pub file_size: i64,
     pub folder: Option<String>,
 }

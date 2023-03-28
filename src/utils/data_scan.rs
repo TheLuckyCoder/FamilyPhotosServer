@@ -8,12 +8,13 @@ use std::str::from_utf8;
 use std::time::Instant;
 
 use actix_files::file_extension_to_mime;
-use chrono::NaiveDateTime;
 use exif::{Field, In, Tag, Value};
 use lazy_static::lazy_static;
 use rayon::prelude::*;
 use regex::Regex;
 use serde::Deserialize;
+use time::macros::format_description;
+use time::{OffsetDateTime, PrimitiveDateTime};
 use walkdir::WalkDir;
 
 use crate::db::photos::{DeletePhotos, GetPhotos, InsertPhotos};
@@ -91,35 +92,34 @@ impl DataScan {
                 let timestamp = Self::get_json_timestamp(path)
                     .map_or_else(
                         |_| Self::get_exif_timestamp(path),
-                        |t| NaiveDateTime::from_timestamp_opt(t as i64, 0),
+                        |t| OffsetDateTime::from_unix_timestamp(t as i64).ok(),
                     )
                     .or_else(|| Self::get_regex_timestamp(path));
 
-                if timestamp.is_none() {
+                if let Some(date_time) = timestamp {
+                    photos.push(Photo {
+                        id: 0,
+                        owner: user.id,
+                        name: entry.file_name().to_string_lossy().to_string(),
+                        time_created: PrimitiveDateTime::new(date_time.date(), date_time.time()),
+                        file_size: fs::metadata(path).map_or(0i64, |data| data.len() as i64),
+                        folder: if entry.depth() == 2 {
+                            Some(
+                                path.parent()
+                                    .unwrap()
+                                    .file_name()
+                                    .unwrap()
+                                    .to_string_lossy()
+                                    .to_string(),
+                            )
+                        } else {
+                            None
+                        },
+                        caption: None,
+                    })
+                } else {
                     eprintln!("No timestamp: {}", entry.path().to_string_lossy());
-                    continue;
                 }
-
-                photos.push(Photo {
-                    id: 0,
-                    owner: user.id,
-                    name: entry.file_name().to_string_lossy().to_string(),
-                    time_created: timestamp.unwrap(),
-                    file_size: fs::metadata(path).map_or(0i64, |data| data.len() as i64),
-                    folder: if entry.depth() == 2 {
-                        Some(
-                            path.parent()
-                                .unwrap()
-                                .file_name()
-                                .unwrap()
-                                .to_string_lossy()
-                                .to_string(),
-                        )
-                    } else {
-                        None
-                    },
-                    caption: None,
-                })
             }
         }
 
@@ -235,16 +235,17 @@ impl DataScan {
         }
     }
 
-    fn is_datetime(f: &Field, tag: Tag) -> Option<NaiveDateTime> {
+    fn is_datetime(f: &Field, tag: Tag) -> Option<OffsetDateTime> {
+        let format = format_description!("[year]:[month]:[day] [hour]:[minute]:[second]");
+
         if f.tag == tag {
-            Self::single_ascii(&f.value)
-                .and_then(|s| NaiveDateTime::parse_from_str(s, "%Y:%m:%d %T").ok())
+            Self::single_ascii(&f.value).and_then(|s| OffsetDateTime::parse(s, &format).ok())
         } else {
             None
         }
     }
 
-    fn get_exif_timestamp(path: &Path) -> Option<NaiveDateTime> {
+    fn get_exif_timestamp(path: &Path) -> Option<OffsetDateTime> {
         let mime = file_extension_to_mime(path.extension()?.to_str()?);
         if mime.type_() != "image" {
             return None;
@@ -271,9 +272,9 @@ impl DataScan {
         None
     }
 
-    fn get_regex_timestamp(path: &Path) -> Option<NaiveDateTime> {
+    fn get_regex_timestamp(path: &Path) -> Option<OffsetDateTime> {
         lazy_static! {
-            static ref DATE_HOUR_PATTERN: Regex = Regex::new("([0-9]{8}).([0-9]{6})").unwrap();
+            static ref DATE_HOUR_PATTERN: Regex = Regex::new("([0-9]{8}.[0-9]{6})").unwrap();
             static ref DATE_HOUR_STRIP_PATTERN: Regex = Regex::new("([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2})").unwrap(); // 2016-09-22-16-19-41
             static ref DATE_PATTERN: Regex = Regex::new("([0-9]{8})").unwrap();
             static ref MILLIS_PATTERN: Regex = Regex::new(".*([0-9]{13})").unwrap();
@@ -283,37 +284,33 @@ impl DataScan {
         let name = name_os.to_str().unwrap();
 
         if let Some(capture) = DATE_HOUR_PATTERN.captures(name) {
-            let date: &str = &capture[1];
-            let time: &str = &capture[2];
-
-            if let Ok(t) =
-                NaiveDateTime::parse_from_str((date.to_string() + time).as_str(), "%Y%m%d%H%M%S")
-            {
+            if let Ok(t) = OffsetDateTime::parse(
+                &capture[1],
+                format_description!("[year][month][day].[hour][minute][second]"),
+            ) {
                 return Some(t);
             }
         }
 
         if let Some(capture) = DATE_HOUR_STRIP_PATTERN.captures(name) {
-            if let Ok(t) = NaiveDateTime::parse_from_str(&capture[1], "%Y-%m-%d-%H-%M-%S") {
+            if let Ok(t) = OffsetDateTime::parse(
+                &capture[1],
+                format_description!("[year]-[month]-[day]-[hour]-[minute]-[second]"),
+            ) {
                 return Some(t);
             }
         }
 
         if let Some(capture) = DATE_PATTERN.captures(name) {
             let date = &capture[1];
-            if let Ok(t) = NaiveDateTime::parse_from_str(
-                (date.to_string() + " 000000").as_str(),
-                "%Y%m%d %H%M%S",
-            ) {
+            if let Ok(t) = OffsetDateTime::parse(date, format_description!("[year][month][day]")) {
                 return Some(t);
             }
         }
 
         if let Some(capture) = MILLIS_PATTERN.captures(name) {
-            let millis = &capture[1];
-            if let Ok(t) = NaiveDateTime::parse_from_str(&millis[..9], "%s") {
-                return Some(t);
-            }
+            let millis: i64 = capture[1].parse().ok()?;
+            return OffsetDateTime::from_unix_timestamp(millis).ok();
         }
 
         None

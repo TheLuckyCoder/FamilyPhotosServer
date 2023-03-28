@@ -1,7 +1,7 @@
 [package]
 name = "familyphotos"
 authors = ["Filea Răzvan Gheorghe <razvan.filea@gmail.com>"]
-version = "2.4.0"
+version = "2.4.1"
 edition = "2021"
 
 [profile.release]
@@ -19,7 +19,7 @@ rustls = "0.20"
 rustls-pemfile = "1.0"
 
 # Database
-diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "r2d2", "postgres", "chrono", "without-deprecated"] }
+diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "r2d2", "postgres", "time"] }
 diesel_migrations = "2.0"
 
 # Serialization
@@ -41,7 +41,7 @@ rayon = "1.7"
 lazy_static = "1"
 regex = "1"
 wait-timeout = "0.2"
-chrono = { version = "0.4", features = ["serde"] }
+time = { version = "0.3", features = ["macros", "parsing", "serde"] }
 dotenv = "0"
 walkdir = "2.3"
 
