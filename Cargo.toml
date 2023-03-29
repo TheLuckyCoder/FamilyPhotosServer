@@ -15,7 +15,7 @@ actix-web = { version = "4", default-features = false, features = ["macros", "ru
 actix-web-httpauth = "0.8"
 actix-files = "0.6"
 actix-multipart = "0.6"
-rustls = "0.20"
+rustls = "0.21"
 rustls-pemfile = "1.0"
 
 # Database
