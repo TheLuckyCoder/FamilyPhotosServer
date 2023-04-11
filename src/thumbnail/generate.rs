@@ -21,7 +21,7 @@ fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> std::io::Resul
         .arg(save_path)
         .spawn()?;
 
-    match child.wait_timeout(Duration::from_secs(15)) {
+    match child.wait_timeout(Duration::from_secs(5)) {
         Ok(status) => Ok(status.map_or(false, |s| s.success())),
         Err(e) => {
             child.kill()?;
@@ -49,8 +49,7 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path:
         .arg("-o")
         .arg(Path::new(&intermediate_path))
         .arg("-s")
-        .arg(THUMBNAIL_TARGET_SIZE.to_string())
-        .arg("-a"); // Make it square
+        .arg(THUMBNAIL_TARGET_SIZE.to_string());
 
     println!("{:?}", &command);
     let mut child = command.spawn().ok()?;
