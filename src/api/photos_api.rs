@@ -12,8 +12,8 @@ use futures_util::TryStreamExt as _;
 use serde::Deserialize;
 
 use crate::api::status_error::StatusError;
-use crate::db::photos::{DeletePhoto, GetPhoto, GetPhotos, InsertPhoto, UpdatePhoto};
-use crate::db::users::GetUser;
+use crate::db::photos_db::{DeletePhoto, GetPhoto, GetPhotos, InsertPhoto, UpdatePhoto};
+use crate::db::users_db::GetUser;
 use crate::db::DbActor;
 use crate::model::photo::{Photo, PhotoBody};
 use crate::model::user::User;
@@ -313,27 +313,28 @@ pub async fn change_photo_location(
         new
     };
 
-    storage.move_file(
-        photo.partial_path(&user).map_err(StatusError::create)?,
-        changed_photo
-            .partial_path(&user)
-            .map_err(StatusError::create)?,
-    );
+    let source_path = photo.partial_path(&user).map_err(StatusError::create)?;
+    let destination_path = changed_photo
+        .partial_path(&user)
+        .map_err(StatusError::create)?;
+
+    storage
+        .move_file(&source_path, &destination_path)
+        .map_err(|e| {
+            StatusError::new_status(
+                std::format!("Failed moving the photo: {e}"),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+        })?;
 
     match db.send(UpdatePhoto(changed_photo.clone())).await {
-        Ok(Ok(_)) => {}
-        _ => {
-            return Err(StatusError::create(
-                "Something went wrong updating the photo",
-            ))
+        Ok(Ok(_)) => {
+            log::info!("Moved photo from {source_path} to {destination_path} successfully")
         }
+        _ => return Err(StatusError::create("Something went wrong moving the photo")),
     };
 
-    if storage.delete_file(photo.partial_path(&user).map_err(StatusError::create)?) {
-        Ok(HttpResponse::Ok().json(changed_photo))
-    } else {
-        Err(StatusError::create("File could not be deleted"))
-    }
+    Ok(HttpResponse::Ok().json(changed_photo))
 }
 
 // endregion Specific User

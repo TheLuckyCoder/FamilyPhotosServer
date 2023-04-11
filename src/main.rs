@@ -18,7 +18,7 @@ use tikv_jemallocator::Jemalloc;
 
 use crate::api::photos_api::*;
 use crate::api::users_api::*;
-use crate::db::users::{GetUsers, InsertUser};
+use crate::db::users_db::{GetUsers, InsertUser};
 use crate::db::DbActor;
 use crate::model::user::User;
 use crate::utils::data_scan::DataScan;

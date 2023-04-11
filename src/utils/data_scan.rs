@@ -17,7 +17,7 @@ use time::macros::format_description;
 use time::{OffsetDateTime, PrimitiveDateTime};
 use walkdir::WalkDir;
 
-use crate::db::photos::{DeletePhotos, GetPhotos, InsertPhotos};
+use crate::db::photos_db::{DeletePhotos, GetPhotos, InsertPhotos};
 use crate::model::photo::Photo;
 use crate::{AppState, FileStorage, GetUsers, User};
 

@@ -1,7 +1,7 @@
 use actix_web::{get, web::Data, web::Path, HttpResponse, Responder};
 
-use crate::db::users::{GetUser, GetUsers};
-use crate::model::user::{SimpleUser};
+use crate::db::users_db::{GetUser, GetUsers};
+use crate::model::user::SimpleUser;
 use crate::AppState;
 
 // region Public

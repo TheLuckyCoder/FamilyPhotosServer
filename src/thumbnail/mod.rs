@@ -1,7 +1,7 @@
 pub use generate::*;
 
-use crate::db::photos::GetPhotos;
-use crate::db::users::GetUsers;
+use crate::db::photos_db::GetPhotos;
+use crate::db::users_db::GetUsers;
 use crate::model::photo::Photo;
 use crate::model::user::User;
 use crate::utils::AppState;

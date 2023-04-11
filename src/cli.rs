@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use crate::db::users::{DeleteUser, GetUsers, InsertUser};
+use crate::db::users_db::{DeleteUser, GetUsers, InsertUser};
 use crate::model::user::SimpleUser;
 use crate::utils::password_hash::generate_password;
 use crate::utils::AppState;

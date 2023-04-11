@@ -46,5 +46,5 @@ fn run_migrations(
     Ok(())
 }
 
-pub mod photos;
-pub mod users;
+pub mod photos_db;
+pub mod users_db;
