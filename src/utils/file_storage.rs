@@ -7,25 +7,36 @@ pub struct FileStorage {
 }
 
 impl FileStorage {
-    pub fn new(path: String) -> FileStorage {
-        let base_path = Path::new(path.as_str()).to_owned();
-        let mut thumbnail_path = base_path.clone();
-        thumbnail_path.push(".thumbnail");
+    pub fn new(storage_path: String, thumbnail_path: Option<String>) -> FileStorage {
+        let base_folder = PathBuf::from(storage_path);
 
-        if !base_path.exists() {
-            fs::create_dir_all(base_path.as_path())
+        let thumbnail_folder = thumbnail_path.map(PathBuf::from).unwrap_or_else(|| {
+            let mut path = base_folder.clone();
+            path.push(".thumbnail");
+            path
+        });
+
+        if !base_folder.exists() {
+            fs::create_dir_all(base_folder.as_path())
                 .expect("Could not create the base storage path");
         } else {
-            assert!(base_path.is_dir());
+            assert!(base_folder.is_dir());
         }
 
-        if !thumbnail_path.exists() {
-            fs::create_dir_all(thumbnail_path).expect("Could not create the .thumbnail folder");
+        if !thumbnail_folder.exists() {
+            fs::create_dir_all(&thumbnail_folder).unwrap_or_else(|_| {
+                panic!(
+                    "Failed to create thumbnail folder at {}",
+                    thumbnail_folder.display()
+                )
+            });
         } else {
-            assert!(thumbnail_path.is_dir());
+            assert!(thumbnail_folder.is_dir());
         }
 
-        FileStorage { base_path }
+        FileStorage {
+            base_path: base_folder,
+        }
     }
 
     pub fn resolve<P: AsRef<Path>>(&self, relative: P) -> PathBuf {
@@ -34,7 +45,11 @@ impl FileStorage {
         new_path
     }
 
-    pub fn move_file<P: AsRef<Path>>(&self, src_relative: P, dest_relative: P) -> std::io::Result<()> {
+    pub fn move_file<P: AsRef<Path>>(
+        &self,
+        src_relative: P,
+        dest_relative: P,
+    ) -> std::io::Result<()> {
         fs::rename(self.resolve(src_relative), self.resolve(dest_relative))
     }
 

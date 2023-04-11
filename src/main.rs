@@ -72,7 +72,7 @@ async fn main() -> std::io::Result<()> {
 
     let app_state = AppState {
         db: manager.clone(),
-        storage: FileStorage::new(vars.storage_path),
+        storage: FileStorage::new(vars.storage_path, vars.thumbnail_storage_path),
     };
 
     if cli::run_cli(&app_state).await {

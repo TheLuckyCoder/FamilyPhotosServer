@@ -7,7 +7,7 @@ Install all the libraries on your system and setup the PostgresSQL service.
 
 ### Needed libraries and programs:
 - postgres (for the database)
-- libwebp (Optional - for any kind of thumbnail generation)
+- libwebp (for thumbnail generation)
 - libheif (Optional - thumbnail generation for HEIC/HEIF images)
 - ffmpegthumbnailer (Optional - for video thumbnail generation)
 
@@ -16,15 +16,16 @@ While some of these are optional, it is recommended to install them all.
 ### Configuration
 The server can be configured using a .env file located in the same folder as the executable or setting environment variables.<br>
 
-- SERVER_PORT: The port the server should listen on
-- DATABASE_URL (eg: postgres://username:password@localhost/database?sslmode=disable)
-- STORAGE_PATH: The path to the folder where the photos will be stored
+- **SERVER_PORT**: The port the server should listen on
+- **DATABASE_URL** (eg: postgres://username:password@localhost/database?sslmode=disable)
+- **STORAGE_PATH**: The path to the folder where the photos will be stored
+- THUMBNAIL_PATH: The path to the folder where the thumbnails of the photos will be generated (default: in STORAGE_PATH/.thumbnail)
 - USE_HTTPS: Run the web server in HTTPS Mode, recommended if you don't have a reverse proxy (default: false)
 - SSL_PRIVATE_KEY_PATH: expects a PKCS8 file path (default: none)
 - SSL_CERTS_PATH (default: none)
-- SKIP_SCANNING: Skip scanning the storage path for changes (for e.g. new/deleted photos) (default: false)
+- SKIP_SCANNING: Skip scanning the storage for external changes at startup (default: false)
+- GENERATE_THUMBNAILS_BACKGROUND: Generate thumbnails for all photos on background thread (on startup), as opposed to only lazily generating when needed (default: false)
 - RUST_LOG: Specifies the Rust log level (default: none)
-- GENERATE_THUMBNAILS_BACKGROUND: Generate thumbnails for all photos on background thread (on app startup), as opposed to only lazily generating when needed (default: false)
 
 ### Creating user accounts
 On your first run, the server will generate a user account with the username "public" and a random password that will be printed in the console.<br>

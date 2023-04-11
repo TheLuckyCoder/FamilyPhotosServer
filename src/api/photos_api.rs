@@ -305,17 +305,22 @@ pub async fn change_photo_location(
     let storage = state.get_ref().storage.borrow();
     let (user_id, photo_id) = path.into_inner();
     let (user, photo) = get_user_and_photo(&db, user_id, photo_id).await?;
+    
+    let target_user_id = query.target_user_id.unwrap_or(PUBLIC_USER_ID);
+    let target_user = get_user(&db, target_user_id).await?;
 
     let changed_photo = {
         let mut new = photo.clone();
-        new.owner = query.target_user_id.unwrap_or(PUBLIC_USER_ID);
+        new.owner = target_user_id;
         new.folder = query.target_folder_name.clone();
         new
     };
 
-    let source_path = photo.partial_path(&user).map_err(StatusError::create)?;
-    let destination_path = changed_photo
+    let source_path = photo
         .partial_path(&user)
+        .map_err(StatusError::create)?;
+    let destination_path = changed_photo
+        .partial_path(&target_user)
         .map_err(StatusError::create)?;
 
     storage
