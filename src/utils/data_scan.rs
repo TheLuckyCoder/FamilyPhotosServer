@@ -274,7 +274,7 @@ impl DataScan {
 
     fn get_regex_timestamp(path: &Path) -> Option<OffsetDateTime> {
         lazy_static! {
-            static ref DATE_HOUR_PATTERN: Regex = Regex::new("([0-9]{8}.[0-9]{6})").unwrap();
+            static ref DATE_HOUR_PATTERN: Regex = Regex::new("([0-9]{8}).([0-9]{6})").unwrap();
             static ref DATE_HOUR_STRIP_PATTERN: Regex = Regex::new("([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2})").unwrap(); // 2016-09-22-16-19-41
             static ref DATE_PATTERN: Regex = Regex::new("([0-9]{8})").unwrap();
             static ref MILLIS_PATTERN: Regex = Regex::new(".*([0-9]{13})").unwrap();
@@ -284,9 +284,12 @@ impl DataScan {
         let name = name_os.to_str().unwrap();
 
         if let Some(capture) = DATE_HOUR_PATTERN.captures(name) {
+            let date: &str = &capture[1];
+            let time: &str = &capture[2];
+
             if let Ok(t) = OffsetDateTime::parse(
-                &capture[1],
-                format_description!("[year][month][day].[hour][minute][second]"),
+                (date.to_string() + time).as_str(),
+                format_description!("[year][month][day][hour][minute][second]"),
             ) {
                 return Some(t);
             }
