@@ -92,7 +92,13 @@ impl DataScan {
                 let timestamp = Self::get_json_timestamp(path)
                     .map_or_else(
                         |_| Self::get_exif_timestamp(path),
-                        |t| OffsetDateTime::from_unix_timestamp(t as i64).ok(),
+                        |t| {
+                            if let Ok(parsed) = OffsetDateTime::from_unix_timestamp(t as i64) {
+                                Some(DataScan::convert_to_primitive_time(&parsed))
+                            } else {
+                                None
+                            }
+                        },
                     )
                     .or_else(|| Self::get_regex_timestamp(path));
 
@@ -235,17 +241,17 @@ impl DataScan {
         }
     }
 
-    fn is_datetime(f: &Field, tag: Tag) -> Option<OffsetDateTime> {
+    fn is_datetime(f: &Field, tag: Tag) -> Option<PrimitiveDateTime> {
         let format = format_description!("[year]:[month]:[day] [hour]:[minute]:[second]");
 
         if f.tag == tag {
-            Self::single_ascii(&f.value).and_then(|s| OffsetDateTime::parse(s, &format).ok())
+            Self::single_ascii(&f.value).and_then(|s| PrimitiveDateTime::parse(s, &format).ok())
         } else {
             None
         }
     }
 
-    fn get_exif_timestamp(path: &Path) -> Option<OffsetDateTime> {
+    fn get_exif_timestamp(path: &Path) -> Option<PrimitiveDateTime> {
         let mime = file_extension_to_mime(path.extension()?.to_str()?);
         if mime.type_() != "image" {
             return None;
@@ -272,7 +278,7 @@ impl DataScan {
         None
     }
 
-    fn get_regex_timestamp(path: &Path) -> Option<OffsetDateTime> {
+    fn get_regex_timestamp(path: &Path) -> Option<PrimitiveDateTime> {
         lazy_static! {
             static ref DATE_HOUR_PATTERN: Regex = Regex::new("([0-9]{8}).([0-9]{6})").unwrap();
             static ref DATE_HOUR_STRIP_PATTERN: Regex = Regex::new("([0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2})").unwrap(); // 2016-09-22-16-19-41
@@ -287,16 +293,16 @@ impl DataScan {
             let date: &str = &capture[1];
             let time: &str = &capture[2];
 
-            if let Ok(t) = OffsetDateTime::parse(
-                (date.to_string() + time).as_str(),
-                format_description!("[year][month][day][hour][minute][second]"),
+            if let Ok(parsed_time) = PrimitiveDateTime::parse(
+                format!("{date} {time}").as_str(),
+                format_description!("[year][month][day] [hour][minute][second]"),
             ) {
-                return Some(t);
+                return Some(parsed_time);
             }
         }
 
         if let Some(capture) = DATE_HOUR_STRIP_PATTERN.captures(name) {
-            if let Ok(t) = OffsetDateTime::parse(
+            if let Ok(t) = PrimitiveDateTime::parse(
                 &capture[1],
                 format_description!("[year]-[month]-[day]-[hour]-[minute]-[second]"),
             ) {
@@ -306,16 +312,53 @@ impl DataScan {
 
         if let Some(capture) = DATE_PATTERN.captures(name) {
             let date = &capture[1];
-            if let Ok(t) = OffsetDateTime::parse(date, format_description!("[year][month][day]")) {
+            if let Ok(t) = PrimitiveDateTime::parse(
+                format!("{date} 000000").as_str(),
+                format_description!("[year][month][day] [hour][minute][second]"),
+            ) {
                 return Some(t);
             }
         }
 
         if let Some(capture) = MILLIS_PATTERN.captures(name) {
             let millis: i64 = capture[1].parse().ok()?;
-            return OffsetDateTime::from_unix_timestamp(millis).ok();
+            let seconds = millis / 1000;
+            if let Ok(parsed_time) = OffsetDateTime::from_unix_timestamp(seconds) {
+                return Some(DataScan::convert_to_primitive_time(&parsed_time));
+            }
         }
 
         None
+    }
+
+    fn convert_to_primitive_time(date_time: &OffsetDateTime) -> PrimitiveDateTime {
+        PrimitiveDateTime::new(date_time.date(), date_time.time())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use time::macros::datetime;
+
+    #[test]
+    fn test_regex_timestamp() {
+        let path1 = PathBuf::from("IMG_20160922_160430.jpg");
+        let path2 = PathBuf::from("IMG_2016-09-22-16-04-30.jpg");
+        let path3 = PathBuf::from("20160922.jpg");
+        let path4 = PathBuf::from("random-1474560270000.jpg");
+
+        let expected_date = Some(datetime!(2016-09-22 16:04:30));
+        assert_eq!(DataScan::get_regex_timestamp(&path1), expected_date);
+
+        assert_eq!(DataScan::get_regex_timestamp(&path2), expected_date);
+
+        assert_eq!(
+            DataScan::get_regex_timestamp(&path3),
+            Some(datetime!(2016-09-22 00:00:00))
+        );
+
+        assert_eq!(DataScan::get_regex_timestamp(&path4), expected_date);
     }
 }
