@@ -27,7 +27,7 @@ pub async fn generate_background(app_state: &AppState) -> Result<(), String> {
         for photo in photos {
             let user = users.iter().find(|user| user.id == photo.owner).unwrap();
             let photo_path = storage.resolve(photo.partial_path(user).unwrap());
-            let thumbnail_path = storage.resolve(photo.partial_thumbnail_path());
+            let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
 
             if photo_path.exists() && !thumbnail_path.exists() {
                 generate_thumbnail(photo_path, thumbnail_path);

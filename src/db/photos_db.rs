@@ -132,8 +132,7 @@ impl Handler<UpdatePhoto> for DbActor {
         let mut conn = self.0.get().expect("Unable to get a connection");
         let photo = msg.0;
 
-        diesel::update(photos)
-            .filter(id.eq(photo.id))
+        diesel::update(photos.filter(id.eq(photo.id)))
             .set(&photo)
             .get_result(&mut conn)
     }

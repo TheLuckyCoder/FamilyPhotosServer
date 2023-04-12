@@ -74,7 +74,7 @@ async fn base_thumbnail_photo(state: &AppState, user_id: i64, photo_id: i64) -> 
     let (user, photo) = get_user_and_photo(&db, user_id, photo_id).await?;
 
     let photo_path = storage.resolve(photo.partial_path(&user).map_err(StatusError::create)?);
-    let thumbnail_path = storage.resolve(photo.partial_thumbnail_path());
+    let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
     let photo_path_clone = photo_path.clone();
     let thumbnail_path_clone = thumbnail_path.clone();
 
@@ -305,7 +305,7 @@ pub async fn change_photo_location(
     let storage = state.get_ref().storage.borrow();
     let (user_id, photo_id) = path.into_inner();
     let (user, photo) = get_user_and_photo(&db, user_id, photo_id).await?;
-    
+
     let target_user_id = query.target_user_id.unwrap_or(PUBLIC_USER_ID);
     let target_user = get_user(&db, target_user_id).await?;
 
@@ -316,9 +316,7 @@ pub async fn change_photo_location(
         new
     };
 
-    let source_path = photo
-        .partial_path(&user)
-        .map_err(StatusError::create)?;
+    let source_path = photo.partial_path(&user).map_err(StatusError::create)?;
     let destination_path = changed_photo
         .partial_path(&target_user)
         .map_err(StatusError::create)?;

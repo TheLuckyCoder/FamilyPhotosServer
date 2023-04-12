@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 
 #[derive(Clone)]
 pub struct FileStorage {
-    base_path: PathBuf,
+    storage_folder: PathBuf,
+    thumbnail_folder: PathBuf,
 }
 
 impl FileStorage {
@@ -35,12 +36,19 @@ impl FileStorage {
         }
 
         FileStorage {
-            base_path: base_folder,
+            storage_folder: base_folder,
+            thumbnail_folder: thumbnail_folder,
         }
     }
 
     pub fn resolve<P: AsRef<Path>>(&self, relative: P) -> PathBuf {
-        let mut new_path = self.base_path.clone();
+        let mut new_path = self.storage_folder.clone();
+        new_path.push(relative);
+        new_path
+    }
+
+    pub fn resolve_thumbnail<P: AsRef<Path>>(&self, relative: P) -> PathBuf {
+        let mut new_path = self.thumbnail_folder.clone();
         new_path.push(relative);
         new_path
     }
