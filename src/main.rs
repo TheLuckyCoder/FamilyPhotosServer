@@ -82,7 +82,7 @@ async fn main() -> std::io::Result<()> {
     // Scan the storage directory for new photos in the background
     if !vars.skip_scanning {
         let app_state_copy = app_state.clone();
-        DataScan::run(app_state_copy);
+        DataScan::run(app_state_copy).await;
     }
 
     if vars.generate_thumbnails_background {

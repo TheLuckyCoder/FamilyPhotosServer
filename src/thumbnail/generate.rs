@@ -51,7 +51,6 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path:
         .arg("-s")
         .arg(THUMBNAIL_TARGET_SIZE.to_string());
 
-    println!("{:?}", &command);
     let mut child = command.spawn().ok()?;
 
     match child.wait_timeout(Duration::from_secs(15)) {

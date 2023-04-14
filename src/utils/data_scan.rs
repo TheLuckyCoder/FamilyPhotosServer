@@ -32,10 +32,16 @@ struct GooglePhotoJsonData {
 }
 
 impl DataScan {
-    pub fn run(app_state: AppState) {
+    pub async fn run(app_state: AppState) {
+        let db = app_state.db.borrow();
+        let users: Vec<User> = match db.send(GetUsers).await {
+            Ok(Ok(users)) => users,
+            _ => panic!("Could not load users"),
+        };
+
         actix_web::rt::spawn(async move {
             let instant = Instant::now();
-            let data_scan = DataScan::scan(&app_state).await;
+            let data_scan = Self::scan(users, app_state.storage.borrow());
             data_scan.update_database(&app_state).await;
 
             log::debug!(
@@ -45,14 +51,7 @@ impl DataScan {
         });
     }
 
-    async fn scan(app_state: &AppState) -> DataScan {
-        let db = app_state.db.clone();
-        let storage = app_state.storage.borrow();
-
-        let users: Vec<User> = match db.send(GetUsers).await {
-            Ok(Ok(users)) => users,
-            _ => panic!("Could not load users"),
-        };
+    fn scan(users: Vec<User>, storage: &FileStorage) -> Self {
         log::debug!(
             "Started scanning user's photos: {:?}",
             users
@@ -66,7 +65,7 @@ impl DataScan {
             .map(|user| Self::scan_user_photos(storage, user))
             .collect::<Vec<_>>();
 
-        DataScan { results }
+        Self { results }
     }
 
     fn scan_user_photos(storage: &FileStorage, user: User) -> (User, Vec<Photo>) {
@@ -93,7 +92,7 @@ impl DataScan {
                         || Self::get_exif_timestamp(path),
                         |json_timestamp| {
                             OffsetDateTime::from_unix_timestamp(json_timestamp as i64)
-                                .map(|parsed| DataScan::convert_to_primitive_time(&parsed))
+                                .map(|parsed| Self::convert_to_primitive_time(&parsed))
                                 .ok()
                         },
                     )
@@ -121,7 +120,7 @@ impl DataScan {
                         caption: None,
                     })
                 } else {
-                    eprintln!("No timestamp: {}", entry.path().to_string_lossy());
+                    eprintln!("No timestamp: {}", entry.path().display());
                 }
             }
         }
@@ -217,26 +216,26 @@ impl DataScan {
         }
     }
 
-    fn single_ascii(value: &Value) -> Option<&str> {
-        match value {
-            Value::Ascii(ref v) if v.len() == 1 => from_utf8(&v[0]).ok(),
-            Value::Ascii(ref v) if v.len() > 1 => {
-                for t in &v[1..] {
-                    if !t.is_empty() {
-                        return None;
-                    }
-                }
-                return from_utf8(&v[0]).ok();
-            }
-            _ => None,
-        }
-    }
-
     fn is_datetime(f: &Field, tag: Tag) -> Option<PrimitiveDateTime> {
         let format = format_description!("[year]:[month]:[day] [hour]:[minute]:[second]");
 
+        fn single_ascii(value: &Value) -> Option<&str> {
+            match value {
+                Value::Ascii(ref v) if v.len() == 1 => from_utf8(&v[0]).ok(),
+                Value::Ascii(ref v) if v.len() > 1 => {
+                    for t in &v[1..] {
+                        if !t.is_empty() {
+                            return None;
+                        }
+                    }
+                    return from_utf8(&v[0]).ok();
+                }
+                _ => None,
+            }
+        }
+
         if f.tag == tag {
-            Self::single_ascii(&f.value).and_then(|s| PrimitiveDateTime::parse(s, &format).ok())
+            single_ascii(&f.value).and_then(|s| PrimitiveDateTime::parse(s, &format).ok())
         } else {
             None
         }
@@ -271,9 +270,8 @@ impl DataScan {
 
     fn get_regex_timestamp<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
         lazy_static! {
-            static ref DATE_HOUR_PATTERN: Regex = Regex::new(r"(\d{8}).(\d{6})").unwrap();
-            static ref DATE_HOUR_ANY_SEPARATOR_PATTERN: Regex
-                = Regex::new(r"(\d{4}).*(\d{2}).*(\d{2}).*(\d{2}).*(\d{2}).*(\d{2})").unwrap(); // 2016-09-22-16-19-41
+            static ref DATE_HOUR_PATTERN: Regex
+                = Regex::new(r"(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})").unwrap(); // 2016-09-22-16-19-41
             static ref DATE_PATTERN: Regex = Regex::new(r"(\d{8})").unwrap();
             static ref MILLIS_PATTERN: Regex = Regex::new(r".*(\d{13})").unwrap();
         }
@@ -281,18 +279,6 @@ impl DataScan {
         let name = path.as_ref().file_stem()?.to_string_lossy().to_string();
 
         if let Some(capture) = DATE_HOUR_PATTERN.captures(&name) {
-            let date: &str = &capture[1];
-            let time: &str = &capture[2];
-
-            if let Ok(parsed_time) = PrimitiveDateTime::parse(
-                format!("{date} {time}").as_str(),
-                format_description!("[year][month][day] [hour][minute][second]"),
-            ) {
-                return Some(parsed_time);
-            }
-        }
-
-        if let Some(capture) = DATE_HOUR_ANY_SEPARATOR_PATTERN.captures(&name) {
             let year = &capture[1];
             let month = &capture[2];
             let day = &capture[3];
@@ -325,7 +311,7 @@ impl DataScan {
             let millis: i64 = capture[1].parse().ok()?;
             let seconds = millis / 1000;
             if let Ok(parsed_time) = OffsetDateTime::from_unix_timestamp(seconds) {
-                return Some(DataScan::convert_to_primitive_time(&parsed_time));
+                return Some(Self::convert_to_primitive_time(&parsed_time));
             }
         }
 
