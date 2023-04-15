@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::user::User;
 use crate::schema::photos;
+use crate::utils::primitive_date_time_serde;
 
 #[derive(
     Debug,
@@ -22,6 +23,7 @@ pub struct Photo {
     pub id: i64,
     pub owner: i64,
     pub name: String,
+    #[serde(with = "primitive_date_time_serde")]
     pub time_created: time::PrimitiveDateTime,
     pub file_size: i64,
     pub folder: Option<String>,

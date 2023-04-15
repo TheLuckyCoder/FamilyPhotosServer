@@ -18,6 +18,7 @@ use crate::db::DbActor;
 use crate::model::photo::{Photo, PhotoBody};
 use crate::model::user::User;
 use crate::thumbnail::generate_thumbnail;
+use crate::utils::primitive_date_time_serde;
 use crate::utils::read_exif;
 use crate::AppState;
 
@@ -27,7 +28,7 @@ async fn get_user(db: &Addr<DbActor>, user_id: i64) -> Result<User> {
     match db.send(GetUser::Id(user_id)).await {
         Ok(Ok(user)) => Ok(user),
         _ => Err(StatusError::new_status(
-            "Could not find user",
+            "No such user",
             StatusCode::NOT_FOUND,
         )),
     }
@@ -42,7 +43,7 @@ async fn get_user_and_photo(
         Ok(Ok(photo)) => photo,
         _ => {
             return Err(StatusError::new_status(
-                "Could not find photo",
+                "No such photo",
                 StatusCode::NOT_FOUND,
             ))
         }
@@ -257,6 +258,7 @@ pub async fn get_photo_exif(state: Data<AppState>, path: Path<(i64, i64)>) -> im
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadData {
+    #[serde(with = "primitive_date_time_serde")]
     time_created: time::PrimitiveDateTime,
     file_size: usize,
     folder_name: Option<String>,
