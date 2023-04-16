@@ -5,7 +5,6 @@ use std::fs;
 use std::io::BufReader;
 use std::path::Path;
 
-pub mod data_scan;
 pub mod env_reader;
 pub mod file_storage;
 pub mod password_hash;
