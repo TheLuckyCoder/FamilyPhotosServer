@@ -61,7 +61,7 @@ impl FileStorage {
         fs::rename(self.resolve(src_relative), self.resolve(dest_relative))
     }
 
-    pub fn delete_file<P: AsRef<Path>>(&self, relative: P) -> bool {
-        fs::remove_file(self.resolve(relative)).is_ok()
+    pub fn delete_file<P: AsRef<Path>>(&self, relative: P) -> std::io::Result<()> {
+        fs::remove_file(self.resolve(relative))
     }
 }

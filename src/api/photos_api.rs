@@ -197,13 +197,14 @@ async fn base_delete_photo(state: &AppState, user_id: i64, photo_id: i64) -> Res
 
     let (user, photo) = get_user_and_photo(&db, user_id, photo_id).await?;
 
-    if storage.delete_file(photo.partial_path(&user).map_err(StatusError::create)?) {
-        match db.send(DeletePhoto { id: photo_id }).await {
+    let path = photo.partial_path(&user).map_err(StatusError::create)?;
+
+    match storage.delete_file(path) {
+        Ok(_) => match db.send(DeletePhoto { id: photo_id }).await {
             Ok(Ok(_count)) => Ok("{\"deleted\": true}".to_string()),
             _ => Err(StatusError::create("Failed to remove photo from database")),
-        }
-    } else {
-        Err(StatusError::create("File could not be deleted"))
+        },
+        Err(e) => Err(StatusError::create(format!("Failed to delete file: {e}"))),
     }
 }
 
