@@ -15,6 +15,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     #[command(subcommand)]
+    /// Add or remove users
     Users(UsersCommand),
 }
 

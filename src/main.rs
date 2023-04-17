@@ -20,7 +20,6 @@ use crate::api::photos_api::*;
 use crate::api::users_api::*;
 use crate::db::users_db::{GetUsers, InsertUser};
 use crate::db::DbActor;
-use crate::file_scan::data_scan::DataScan;
 use crate::model::user::User;
 use crate::utils::env_reader::EnvVariables;
 use crate::utils::file_storage::FileStorage;
@@ -73,7 +72,7 @@ async fn main() -> std::io::Result<()> {
 
     let app_state = AppState {
         db: manager.clone(),
-        storage: FileStorage::new(vars.storage_path, vars.thumbnail_storage_path),
+        storage: FileStorage::new(vars.storage_path, vars.thumbnail_path),
     };
 
     if cli::run_cli(&app_state).await {
@@ -81,9 +80,9 @@ async fn main() -> std::io::Result<()> {
     }
 
     // Scan the storage directory for new photos in the background
-    if !vars.skip_scanning {
+    if vars.scan_new_files {
         let app_state_copy = app_state.clone();
-        DataScan::run(app_state_copy).await;
+        file_scan::scan_new_files(app_state_copy).await;
     }
 
     if vars.generate_thumbnails_background {

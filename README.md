@@ -23,7 +23,7 @@ The server can be configured using a .env file located in the same folder as the
 - USE_HTTPS: Run the web server in HTTPS Mode, recommended if you don't have a reverse proxy (default: false)
 - SSL_PRIVATE_KEY_PATH: expects a PKCS8 file path (default: none)
 - SSL_CERTS_PATH (default: none)
-- SKIP_SCANNING: Skip scanning the storage for external changes at startup (default: false)
+- SCAN_NEW_FILES: Scan the storage for external changes at startup (default: true)
 - GENERATE_THUMBNAILS_BACKGROUND: Generate thumbnails for all photos on background thread (on startup), as opposed to only lazily generating when needed (default: false)
 - RUST_LOG: Specifies the Rust log level (default: none)
 
@@ -32,18 +32,20 @@ On your first run, the server will generate a user account with the username "pu
 Knowing this password is not relevant as this user is only used for photos that belong to everyone.<br><br>
 To create new user accounts run the following command using the CLI:<br>
 ```commandline
-familyphotos user create -u <user_name> -d <display_name> -p <password>
+familyphotos user create -u <user_name> -d <display_name> [-p <password>]
 ```
 This will generate a new user with the given username, display name and password or a random one if not provided.<br>
 
 ## Folder structure
 The server will generate the following folder structure in the STORAGE_PATH:
 ```
-├───.thumbnail/ # Folder for thumbnails
+├───.thumbnail/ # Folder for thumbnails (if not specified elsewhere)
+│
 ├───public/ # The folder of the "public" user, alas photos who belong to everyone
 │   ├───<album_name>/ # Folder for albums aka "folders"
 │   │   └───<photo_name> # Photo files
 │   └───<photo_name> # Photo files
+│
 └───<user_name>/ # Folder for each individual user
     ├───<album_name>/ # Folder for albums aka "folders"
     │   └───<photo_name> # Photo files
@@ -62,9 +64,9 @@ Wants=network.target
 After=network.target
 
 [Service]
-WorkingDirectory=/home/server/family
-ExecStart=/home/server/family/familyphotos
-User=server
+WorkingDirectory=/path/to/executable
+ExecStart=familyphotos
+User=...
 Restart=on-failure
 RestartSec=20
 SuccessExitStatus=0

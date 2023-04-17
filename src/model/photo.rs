@@ -41,9 +41,9 @@ pub struct PhotoBody {
 
 impl Photo {
     pub fn full_name(&self) -> String {
-        let folder_path = match self.folder.clone() {
+        let folder_path = match self.folder.as_ref() {
             None => String::new(),
-            Some(folder) => folder + "/",
+            Some(folder) => format!("{folder}/"),
         };
 
         folder_path + self.name.as_str()
