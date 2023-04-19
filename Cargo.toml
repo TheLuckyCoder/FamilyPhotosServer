@@ -9,18 +9,25 @@ incremental = true
 lto = "thin"
 
 [dependencies]
+# Async Runtime
+tokio = { version = "1.27", features = ["macros", "rt-multi-thread", "fs", "io-std"] }
+tokio-util = { version = "0.7", features = ["io"]}
+async-trait = "0.1"
+
+# Axum
+axum = { version = "0.6", features = ["macros", "multipart"] }
+tower = "0.4"
+bb8 = "0.8"
+
 # Actix
 actix = "0.13"
-actix-web = { version = "4", default-features = false, features = ["macros", "rustls"] }
-actix-web-httpauth = "0.8"
-actix-files = "0.6"
-actix-multipart = "0.6"
 rustls = "0.20"
 rustls-pemfile = "1.0"
 
 # Database
 diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "r2d2", "postgres", "time"] }
 diesel_migrations = "2.0"
+diesel-async = { version = "0.2", features = ["postgres", "bb8"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -44,6 +51,7 @@ wait-timeout = "0.2"
 time = { version = "0.3", features = ["macros", "parsing"] }
 dotenv = "0"
 walkdir = "2.3"
+mime_guess = "2"
 
 # Crypto
 base64 = "0.21"

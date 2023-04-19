@@ -1,53 +1,41 @@
-use actix::{Handler, Message};
+use crate::db::{Handler, Pool};
+use async_trait::async_trait;
 use diesel::prelude::*;
+use diesel_async::RunQueryDsl;
 use rand::prelude::*;
 
 use crate::model::photo::{Photo, PhotoBody};
 use crate::schema::photos::dsl::{id, owner, photos, time_created};
-use crate::DbActor;
 
-#[derive(Message)]
-#[rtype(result = "QueryResult<Vec<Photo>>")]
 pub enum GetPhotos {
     All,
     Owner(i64),
 }
 
-#[derive(Message)]
-#[rtype(result = "QueryResult<Photo>")]
 pub struct GetPhoto {
     pub id: i64,
 }
 
-#[derive(Message)]
-#[rtype(result = "QueryResult<Photo>")]
 pub struct InsertPhoto(pub PhotoBody);
 
-#[derive(Message)]
-#[rtype(result = "QueryResult<usize>")]
 pub struct InsertPhotos(pub Vec<Photo>);
 
-#[derive(Message)]
-#[rtype(result = "QueryResult<Photo>")]
 pub struct UpdatePhoto(pub Photo);
 
-#[derive(Message)]
-#[rtype(result = "QueryResult<usize>")]
 pub struct DeletePhoto {
     pub id: i64,
 }
 
-#[derive(Message)]
-#[rtype(result = "QueryResult<usize>")]
 pub struct DeletePhotos {
     pub ids: Vec<i64>,
 }
 
-impl Handler<GetPhotos> for DbActor {
+#[async_trait]
+impl Handler<GetPhotos> for Pool {
     type Result = QueryResult<Vec<Photo>>;
 
-    fn handle(&mut self, msg: GetPhotos, _: &mut Self::Context) -> Self::Result {
-        let mut conn = self.0.get().expect("Unable to get a connection");
+    async fn send(&self, msg: GetPhotos) -> Self::Result {
+        let mut conn = self.0.get().await.expect("Unable to get a connection");
 
         match msg {
             GetPhotos::All => photos
@@ -58,27 +46,34 @@ impl Handler<GetPhotos> for DbActor {
                 .order(time_created.desc())
                 .get_results::<Photo>(&mut conn),
         }
+        .await
     }
 }
 
-impl Handler<GetPhoto> for DbActor {
+#[async_trait]
+impl Handler<GetPhoto> for Pool {
     type Result = QueryResult<Photo>;
 
-    fn handle(&mut self, msg: GetPhoto, _: &mut Self::Context) -> Self::Result {
-        let mut conn = self.0.get().expect("Unable to get a connection");
-        photos.filter(id.eq(msg.id)).get_result::<Photo>(&mut conn)
+    async fn send(&self, msg: GetPhoto) -> Self::Result {
+        let mut conn = self.0.get().await.expect("Unable to get a connection");
+        photos
+            .filter(id.eq(msg.id))
+            .get_result::<Photo>(&mut conn)
+            .await
     }
 }
 
-impl Handler<InsertPhoto> for DbActor {
+#[async_trait]
+impl Handler<InsertPhoto> for Pool {
     type Result = QueryResult<Photo>;
 
-    fn handle(&mut self, msg: InsertPhoto, _: &mut Self::Context) -> Self::Result {
+    async fn send(&self, msg: InsertPhoto) -> Self::Result {
         let body = msg.0;
         let generated_id = {
-            let rng = &mut self.1.lock().unwrap();
+            let rng = &mut self.1.lock().await;
             rng.gen::<i64>()
         };
+
         let photo = Photo {
             id: generated_id,
             owner: body.owner,
@@ -89,19 +84,21 @@ impl Handler<InsertPhoto> for DbActor {
             caption: None,
         };
 
-        let mut conn = self.0.get().expect("Unable to get a connection");
+        let mut conn = self.0.get().await.expect("Unable to get a connection");
 
         diesel::insert_into(photos)
             .values(photo)
             .get_result::<Photo>(&mut conn)
+            .await
     }
 }
 
-impl Handler<InsertPhotos> for DbActor {
+#[async_trait]
+impl Handler<InsertPhotos> for Pool {
     type Result = QueryResult<usize>;
 
-    fn handle(&mut self, msg: InsertPhotos, _: &mut Self::Context) -> Self::Result {
-        let rng = &mut self.1.lock().unwrap();
+    async fn send(&self, msg: InsertPhotos) -> Self::Result {
+        let rng = &mut self.1.lock().await;
 
         let new_photos = msg
             .0
@@ -117,43 +114,52 @@ impl Handler<InsertPhotos> for DbActor {
             })
             .collect::<Vec<Photo>>();
 
-        let mut conn = self.0.get().expect("Unable to get a connection");
+        let mut conn = self.0.get().await.expect("Unable to get a connection");
 
         diesel::insert_into(photos)
             .values(new_photos)
             .execute(&mut conn)
+            .await
     }
 }
 
-impl Handler<UpdatePhoto> for DbActor {
+#[async_trait]
+impl Handler<UpdatePhoto> for Pool {
     type Result = QueryResult<Photo>;
 
-    fn handle(&mut self, msg: UpdatePhoto, _: &mut Self::Context) -> Self::Result {
-        let mut conn = self.0.get().expect("Unable to get a connection");
+    async fn send(&self, msg: UpdatePhoto) -> Self::Result {
+        let mut conn = self.0.get().await.expect("Unable to get a connection");
         let photo = msg.0;
 
         diesel::update(photos.filter(id.eq(photo.id)))
             .set(&photo)
             .get_result(&mut conn)
+            .await
     }
 }
 
-impl Handler<DeletePhoto> for DbActor {
+#[async_trait]
+impl Handler<DeletePhoto> for Pool {
     type Result = QueryResult<usize>;
 
-    fn handle(&mut self, msg: DeletePhoto, _: &mut Self::Context) -> Self::Result {
-        let mut conn = self.0.get().expect("Unable to get a connection");
+    async fn send(&self, msg: DeletePhoto) -> Self::Result {
+        let mut conn = self.0.get().await.expect("Unable to get a connection");
 
-        diesel::delete(photos.filter(id.eq(msg.id))).execute(&mut conn)
+        diesel::delete(photos.filter(id.eq(msg.id)))
+            .execute(&mut conn)
+            .await
     }
 }
 
-impl Handler<DeletePhotos> for DbActor {
+#[async_trait]
+impl Handler<DeletePhotos> for Pool {
     type Result = QueryResult<usize>;
 
-    fn handle(&mut self, msg: DeletePhotos, _: &mut Self::Context) -> Self::Result {
-        let mut conn = self.0.get().expect("Unable to get a connection");
+    async fn send(&self, msg: DeletePhotos) -> Self::Result {
+        let mut conn = self.0.get().await.expect("Unable to get a connection");
 
-        diesel::delete(photos.filter(id.eq_any(msg.ids))).execute(&mut conn)
+        diesel::delete(photos.filter(id.eq_any(msg.ids)))
+            .execute(&mut conn)
+            .await
     }
 }

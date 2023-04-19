@@ -1,9 +1,9 @@
+use crate::db::{Handler, Pool};
 use clap::{Parser, Subcommand};
 
 use crate::db::users_db::{DeleteUser, GetUsers, InsertUser};
 use crate::model::user::SimpleUser;
 use crate::utils::password_hash::generate_password;
-use crate::utils::AppState;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -45,9 +45,8 @@ enum UsersCommand {
 /**
  * @return true if the program should exit
  */
-pub async fn run_cli(app_state: &AppState) -> bool {
+pub async fn run_cli(pool: &Pool) -> bool {
     let cli = Cli::parse();
-    let db = app_state.db.clone();
 
     let cmd = cli.commands;
     if cmd.is_none() {
@@ -61,7 +60,7 @@ pub async fn run_cli(app_state: &AppState) -> bool {
                 display_name,
                 password,
             } => {
-                let user_result = db
+                let user_result = pool
                     .send(InsertUser::WithoutId {
                         user_name,
                         display_name,
@@ -70,12 +69,12 @@ pub async fn run_cli(app_state: &AppState) -> bool {
                     .await;
 
                 match user_result {
-                    Ok(Ok(user)) => println!("User created: {:?}", SimpleUser::from_user(&user)),
+                    Ok(user) => println!("User created: {:?}", SimpleUser::from_user(&user)),
                     _ => eprintln!("Error creating user"),
                 }
             }
-            UsersCommand::List => match db.send(GetUsers).await {
-                Ok(Ok(users)) => {
+            UsersCommand::List => match pool.send(GetUsers).await {
+                Ok(users) => {
                     println!("Users:");
                     for user in users {
                         println!("\t{:?}", SimpleUser::from_user(&user));
@@ -84,13 +83,13 @@ pub async fn run_cli(app_state: &AppState) -> bool {
                 _ => eprintln!("Error listing users"),
             },
             UsersCommand::Remove { user_name } => {
-                match db
+                match pool
                     .send(DeleteUser {
                         user_name: user_name.clone(),
                     })
                     .await
                 {
-                    Ok(Ok(_)) => println!("Deleted user with user name: {user_name}"),
+                    Ok(_) => println!("Deleted user with user name: {user_name}"),
                     _ => eprintln!("Failed to remove user with user name: {user_name}"),
                 }
             }

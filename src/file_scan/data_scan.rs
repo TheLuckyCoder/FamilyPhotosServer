@@ -5,9 +5,11 @@ use std::time::Instant;
 
 use rayon::prelude::*;
 use time::PrimitiveDateTime;
+use tokio::task;
 use walkdir::{DirEntry, WalkDir};
 
 use crate::db::photos_db::{DeletePhotos, GetPhotos, InsertPhotos};
+use crate::db::Handler;
 use crate::file_scan::timestamp;
 use crate::model::photo::Photo;
 use crate::{AppState, FileStorage, GetUsers, User};
@@ -18,13 +20,12 @@ pub struct DataScan {
 
 impl DataScan {
     pub async fn run(app_state: AppState) {
-        let db = app_state.db.borrow();
-        let users: Vec<User> = match db.send(GetUsers).await {
-            Ok(Ok(users)) => users,
+        let users: Vec<User> = match app_state.pool.send(GetUsers).await {
+            Ok(users) => users,
             _ => panic!("Could not load users"),
         };
 
-        actix_web::rt::spawn(async move {
+        task::spawn(async move {
             let instant = Instant::now();
             let data_scan = Self::scan(users, app_state.storage.borrow());
             data_scan.update_database(&app_state).await;
@@ -107,10 +108,10 @@ impl DataScan {
     }
 
     async fn update_database(self, app_state: &AppState) {
-        let db = app_state.db.clone();
+        let pool = &app_state.pool;
         let storage = app_state.storage.borrow();
 
-        let existing_photos: Vec<Photo> = db.send(GetPhotos::All).await.ok().unwrap().unwrap();
+        let existing_photos: Vec<Photo> = pool.send(GetPhotos::All).await.unwrap();
         let existing_photos_names: Vec<String> = existing_photos
             .iter()
             .map(|photo| photo.full_name())
@@ -123,7 +124,7 @@ impl DataScan {
                 user.user_name
             );
 
-            // Add any photo that was not already in the database
+            // Add any photo that was not already in the db
             // Keep only new photos
             found_photos.retain(|photo| !existing_photos_names.contains(&photo.full_name()));
 
@@ -135,9 +136,8 @@ impl DataScan {
                 );
 
                 for chunk in found_photos.chunks(512) {
-                    db.send(InsertPhotos(Vec::from(chunk)))
+                    pool.send(InsertPhotos(Vec::from(chunk)))
                         .await
-                        .unwrap()
                         .expect("Failed to insert photos");
                 }
             }
@@ -159,11 +159,10 @@ impl DataScan {
                     removed_photos.len(),
                     user.user_name
                 );
-                db.send(DeletePhotos {
+                pool.send(DeletePhotos {
                     ids: removed_photos,
                 })
                 .await
-                .unwrap()
                 .unwrap();
             }
         }

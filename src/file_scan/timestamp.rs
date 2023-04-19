@@ -1,6 +1,6 @@
-use actix_files::file_extension_to_mime;
 use exif::{Field, In, Tag, Value};
 use lazy_static::lazy_static;
+use mime_guess::MimeGuess;
 use regex::Regex;
 use serde::Deserialize;
 use std::fs;
@@ -79,7 +79,7 @@ fn is_datetime(f: &Field, tag: Tag) -> Option<PrimitiveDateTime> {
 }
 
 fn get_exif_timestamp(path: &Path) -> Option<PrimitiveDateTime> {
-    let mime = file_extension_to_mime(path.extension()?.to_str()?);
+    let mime = MimeGuess::from_ext(path.extension()?.to_str()?).first_or_octet_stream();
     if mime.type_() != "image" {
         return None;
     }

@@ -1,35 +1,30 @@
 extern crate diesel;
 
-use std::fs::File;
-use std::io::BufReader;
+use std::net::SocketAddr;
+use std::sync::Arc;
 
-use actix::SyncArbiter;
-use actix_web::middleware::{Logger, TrailingSlash};
-use actix_web::web::Data;
-use actix_web::{dev::ServiceRequest, middleware, web, App, Error, HttpResponse, HttpServer};
-use actix_web_httpauth::extractors::{basic, AuthenticationError};
-use actix_web_httpauth::headers::www_authenticate::basic::Basic;
-use actix_web_httpauth::middleware::HttpAuthentication;
+use crate::db::*;
+use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use env_logger::Env;
+use rand::SeedableRng;
+use rand_hc::Hc128Rng;
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
+use tokio::sync::Mutex;
 
-use crate::api::photos_api::*;
-use crate::api::users_api::*;
 use crate::db::users_db::{GetUsers, InsertUser};
-use crate::db::DbActor;
+use crate::http::AppState;
 use crate::model::user::User;
 use crate::utils::env_reader::EnvVariables;
 use crate::utils::file_storage::FileStorage;
 use crate::utils::password_hash::{generate_password, get_hash_from_password};
-use crate::utils::AppState;
 
-mod api;
 mod cli;
 mod db;
 mod file_scan;
+mod http;
 mod model;
 mod schema;
 mod thumbnail;
@@ -39,7 +34,7 @@ mod utils;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-static mut USERS: Vec<User> = Vec::new();
+/*static mut USERS: Vec<User> = Vec::new();
 
 async fn any_user_auth_validator(
     req: ServiceRequest,
@@ -58,31 +53,38 @@ async fn any_user_auth_validator(
     }
 
     Err((Error::from(AuthenticationError::new(Basic::new())), req))
-}
+}*/
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() {
     EnvVariables::init();
     let vars = EnvVariables::get_all();
     env_logger::Builder::from_env(Env::default())
         .format_timestamp(None)
         .init();
 
-    let manager = SyncArbiter::start(2, move || DbActor::new(vars.database_url.as_str()));
+    let config =
+        AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(vars.database_url);
+    let pool = Pool(
+        bb8::Pool::builder()
+            .build(config)
+            .await
+            .expect("Error building a connection pool"),
+        Arc::new(Mutex::new(Hc128Rng::from_entropy())),
+    );
 
     let app_state = AppState {
-        db: manager.clone(),
+        pool,
         storage: FileStorage::new(vars.storage_path, vars.thumbnail_path),
     };
 
-    if cli::run_cli(&app_state).await {
-        return Ok(());
+    if cli::run_cli(&app_state.pool).await {
+        return;
     }
 
     // Scan the storage directory for new photos in the background
     if vars.scan_new_files {
-        let app_state_copy = app_state.clone();
-        file_scan::scan_new_files(app_state_copy).await;
+        file_scan::scan_new_files(app_state.clone()).await;
     }
 
     if vars.generate_thumbnails_background {
@@ -93,8 +95,8 @@ async fn main() -> std::io::Result<()> {
     }
 
     {
-        let mut users: Vec<User> = match manager.send(GetUsers).await {
-            Ok(Ok(users)) => users,
+        let mut users: Vec<User> = match app_state.pool.send(GetUsers).await {
+            Ok(users) => users,
             _ => panic!("Could not load users"),
         };
 
@@ -111,60 +113,26 @@ async fn main() -> std::io::Result<()> {
                 public_user.password
             );
 
-            match manager.send(InsertUser::WithId(public_user)).await {
-                Ok(Ok(user)) => users = vec![user],
+            match app_state.pool.send(InsertUser::WithId(public_user)).await {
+                Ok(user) => users = vec![user],
                 _ => panic!("Failed to create public user"),
             };
         }
 
-        unsafe {
+        /*unsafe {
             USERS = users;
-        }
+        }*/
     }
 
-    log::info!("Starting server on port {}", vars.server_port);
+    log::info!("Server listening on port {}", vars.server_port);
 
-    let server = HttpServer::new(move || {
-        let logger = Logger::new(r#"%r %s %b "%{User-Agent}i" %T"#);
-        let auth = HttpAuthentication::basic(any_user_auth_validator);
+    let addr = SocketAddr::from(([127, 0, 0, 1], vars.server_port));
+    axum::Server::bind(&addr)
+        .serve(http::router(app_state).into_make_service())
+        .await
+        .expect("Failed to start axum server");
 
-        App::new()
-            .wrap(logger)
-            .wrap(middleware::NormalizePath::new(TrailingSlash::Trim))
-            .service(web::resource("").to(HttpResponse::Ok))
-            .service(web::resource("/ping").to(HttpResponse::Ok))
-            .service(
-                web::scope("/user")
-                    .wrap(auth.clone())
-                    .service(get_user)
-                    .service(get_users),
-            )
-            .service(
-                web::scope("/photos")
-                    .wrap(auth.clone())
-                    .service(photos_list)
-                    .service(thumbnail_photo)
-                    .service(download_photo)
-                    .service(get_photo_exif)
-                    .service(upload_photo)
-                    .service(update_photo_caption)
-                    .service(delete_photo)
-                    .service(change_photo_location),
-            )
-            .service(
-                web::scope("/public_photos")
-                    .wrap(auth)
-                    .service(public_photos_list)
-                    .service(public_thumbnail_photo)
-                    .service(public_download_photo)
-                    .service(public_upload_photo)
-                    .service(public_update_photo_caption)
-                    .service(public_delete_photo),
-            )
-            .app_data(Data::new(app_state.clone()))
-    });
-
-    if vars.use_https {
+    /*if vars.use_https {
         let config = load_rustls_config(
             vars.ssl_certs_path
                 .expect("SSL_CERTS_PATH variable is missing"),
@@ -180,10 +148,10 @@ async fn main() -> std::io::Result<()> {
     } else {
         log::info!("Server configured successfully in HTTP mode");
         server.bind(("127.0.0.1", vars.server_port))?.run().await
-    }
+    }*/
 }
 
-fn load_rustls_config(certs_path: String, key_path: String) -> std::io::Result<ServerConfig> {
+/*fn load_rustls_config(certs_path: String, key_path: String) -> std::io::Result<ServerConfig> {
     // init server config builder with safe defaults
     let config = ServerConfig::builder()
         .with_safe_defaults()
@@ -219,4 +187,4 @@ fn load_rustls_config(certs_path: String, key_path: String) -> std::io::Result<S
                 format!("Could not load TLS config: {}", e),
             )
         })
-}
+}*/

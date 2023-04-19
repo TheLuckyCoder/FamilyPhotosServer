@@ -1,5 +1,5 @@
 use crate::file_scan::data_scan::DataScan;
-use crate::utils::AppState;
+use crate::http::AppState;
 
 mod data_scan;
 mod timestamp;

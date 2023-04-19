@@ -1,5 +1,5 @@
-use actix_web::http::StatusCode;
-use actix_web::{error, Error};
+use axum::http::StatusCode;
+use axum::response::{ErrorResponse, IntoResponse, Response};
 use std::fmt;
 use std::fmt::Formatter;
 
@@ -10,15 +10,15 @@ pub struct StatusError {
 }
 
 impl StatusError {
-    pub fn create<S: Into<String>>(message: S) -> Error {
-        Error::from(Self {
+    pub fn create<S: Into<String>>(message: S) -> ErrorResponse {
+        ErrorResponse::from(Self {
             message: message.into(),
             status_code: StatusCode::INTERNAL_SERVER_ERROR,
         })
     }
 
-    pub fn new_status<S: Into<String>>(message: S, status_code: StatusCode) -> Error {
-        Error::from(Self {
+    pub fn new_status<S: Into<String>>(message: S, status_code: StatusCode) -> ErrorResponse {
+        ErrorResponse::from(Self {
             message: message.into(),
             status_code,
         })
@@ -31,8 +31,8 @@ impl fmt::Display for StatusError {
     }
 }
 
-impl error::ResponseError for StatusError {
-    fn status_code(&self) -> StatusCode {
-        self.status_code
+impl IntoResponse for StatusError {
+    fn into_response(self) -> Response {
+        (self.status_code, self.message).into_response()
     }
 }

@@ -1,13 +1,11 @@
-use actix::{Handler, Message};
-use diesel::prelude::*;
-
+use crate::db::utils::{Handler, Pool};
 use crate::model::user::User;
 use crate::schema::users::dsl;
 use crate::schema::users::dsl::users;
-use crate::DbActor;
+use async_trait::async_trait;
+use diesel::prelude::*;
+use diesel_async::RunQueryDsl;
 
-#[derive(Message)]
-#[rtype(result = "QueryResult<User>")]
 pub enum InsertUser {
     WithId(User),
     WithoutId {
@@ -17,28 +15,23 @@ pub enum InsertUser {
     },
 }
 
-#[derive(Message)]
-#[rtype(result = "QueryResult<Vec<User>>")]
 pub struct GetUsers;
 
-#[derive(Message)]
-#[rtype(result = "QueryResult<User>")]
 pub enum GetUser {
     Id(i64),
     UserName(String),
 }
 
-#[derive(Message)]
-#[rtype(result = "QueryResult<usize>")]
 pub struct DeleteUser {
     pub(crate) user_name: String,
 }
 
-impl Handler<InsertUser> for DbActor {
+#[async_trait]
+impl Handler<InsertUser> for Pool {
     type Result = QueryResult<User>;
 
-    fn handle(&mut self, msg: InsertUser, _: &mut Self::Context) -> Self::Result {
-        let mut conn = self.0.get().expect("Unable to get a connection");
+    async fn send(&self, msg: InsertUser) -> Self::Result {
+        let mut conn = self.0.get().await.expect("Unable to get a connection");
 
         match msg {
             InsertUser::WithId(user) => diesel::insert_into(users)
@@ -56,23 +49,26 @@ impl Handler<InsertUser> for DbActor {
                 ))
                 .get_result::<User>(&mut conn),
         }
+        .await
     }
 }
 
-impl Handler<GetUsers> for DbActor {
+#[async_trait]
+impl Handler<GetUsers> for Pool {
     type Result = QueryResult<Vec<User>>;
 
-    fn handle(&mut self, _: GetUsers, _: &mut Self::Context) -> Self::Result {
-        let mut conn = self.0.get().expect("Unable to get a connection");
-        users.get_results::<User>(&mut conn)
+    async fn send(&self, _: GetUsers) -> Self::Result {
+        let mut conn = self.0.get().await.expect("Unable to get a connection");
+        users.get_results::<User>(&mut conn).await
     }
 }
 
-impl Handler<GetUser> for DbActor {
+#[async_trait]
+impl Handler<GetUser> for Pool {
     type Result = QueryResult<User>;
 
-    fn handle(&mut self, msg: GetUser, _: &mut Self::Context) -> Self::Result {
-        let mut conn = self.0.get().expect("Unable to get a connection");
+    async fn send(&self, msg: GetUser) -> Self::Result {
+        let mut conn = self.0.get().await.expect("Unable to get a connection");
 
         match msg {
             GetUser::Id(user_id) => users
@@ -82,15 +78,19 @@ impl Handler<GetUser> for DbActor {
                 .filter(dsl::user_name.eq(name))
                 .get_result::<User>(&mut conn),
         }
+        .await
     }
 }
 
-impl Handler<DeleteUser> for DbActor {
+#[async_trait]
+impl Handler<DeleteUser> for Pool {
     type Result = QueryResult<usize>;
 
-    fn handle(&mut self, msg: DeleteUser, _: &mut Self::Context) -> Self::Result {
-        let mut conn = self.0.get().expect("Unable to get a connection");
+    async fn send(&self, msg: DeleteUser) -> Self::Result {
+        let mut conn = self.0.get().await.expect("Unable to get a connection");
 
-        diesel::delete(users.filter(dsl::user_name.eq(msg.user_name))).execute(&mut conn)
+        diesel::delete(users.filter(dsl::user_name.eq(msg.user_name)))
+            .execute(&mut conn)
+            .await
     }
 }

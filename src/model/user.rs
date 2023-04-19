@@ -1,8 +1,8 @@
 use crate::schema::users;
-use diesel::{Insertable, Queryable};
+use diesel::{Insertable, Queryable, Selectable};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Queryable, Insertable, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Selectable, Queryable, Insertable, Deserialize)]
 #[diesel(table_name = users)]
 #[serde(rename_all = "camelCase")]
 pub struct User {

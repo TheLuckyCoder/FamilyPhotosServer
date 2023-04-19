@@ -62,7 +62,7 @@ impl Photo {
             None => None,
             Some((_before, after)) => {
                 if after == "heic" || after == "heif" {
-                    Some(after)
+                    Some("png")
                 } else {
                     None
                 }

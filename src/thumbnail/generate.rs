@@ -5,10 +5,10 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-use actix_files::file_extension_to_mime;
 use exif::{In, Tag};
 use image::imageops::FilterType;
 use image::DynamicImage;
+use mime_guess::MimeGuess;
 use wait_timeout::ChildExt;
 
 const THUMBNAIL_TARGET_SIZE: u32 = 500;
@@ -76,7 +76,8 @@ where
     R: AsRef<Path>,
 {
     let ext = load_path.as_ref().extension().unwrap().to_ascii_lowercase();
-    let mime = file_extension_to_mime(ext.to_str().unwrap());
+
+    let mime = MimeGuess::from_ext(ext.to_str().unwrap()).first_or_octet_stream();
     if mime.type_() == "video" {
         return generate_video_frame(&load_path, &save_path).is_some();
     }
@@ -101,7 +102,7 @@ where
 }
 
 fn read_exif_orientation(path: &Path) -> Option<u32> {
-    let mime = file_extension_to_mime(path.extension()?.to_str()?);
+    let mime = MimeGuess::from_ext(path.extension()?.to_str()?).first_or_octet_stream();
     if mime.type_() != "image" {
         return None;
     }
