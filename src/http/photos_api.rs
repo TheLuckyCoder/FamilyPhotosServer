@@ -1,23 +1,22 @@
-use crate::db::photos_db::{DeletePhoto, GetPhoto, GetPhotos, InsertPhoto, UpdatePhoto};
-use crate::db::users_db::GetUser;
+use crate::db::photos_db::{DeletePhoto, GetPhotos, InsertPhoto, UpdatePhoto};
 use crate::db::{internal_error, Handler, Pool};
 use crate::http::status_error::StatusError;
-use crate::http::{AppState, AxumResult};
-use crate::model::photo::{Photo, PhotoBody};
-use crate::model::user::User;
+use crate::http::utils::{file_to_response, get_user, get_user_and_photo, AxumResult};
+use crate::http::AppState;
+use crate::model::photo::PhotoBody;
 use crate::thumbnail::generate_thumbnail;
-use crate::utils::file_storage::FileStorage;
 use crate::utils::{primitive_date_time_serde, read_exif};
-use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
-use axum::routing::{delete, get, post};
 use axum::{
-    body::StreamBody, extract::Multipart, http::header, response::IntoResponse, Json, Router,
+    extract::Multipart,
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{delete, get, post},
+    Json, Router,
 };
-use futures_util::{FutureExt, TryStreamExt};
-use tokio::io::{AsyncRead, AsyncWriteExt};
+use futures_util::TryStreamExt;
+use tokio::io::AsyncWriteExt;
 use tokio::{fs, task};
-use tokio_util::io::ReaderStream;
 
 const PUBLIC_USER_ID: i64 = 1;
 
@@ -25,6 +24,7 @@ pub fn router(app_state: AppState) -> Router {
     let user_router = Router::new()
         .route("/:user_id", get(photos_list))
         .route("/:user_id/download/:photo_id", get(download_photo))
+        .route("/:user_id/thumbnail/:photo_id", get(thumbnail_photo))
         .route("/:user_id/exif/:photo_id", get(get_photo_exif))
         .route("/:user_id/upload/:photo_id", post(upload_photo))
         .route("/:user_id/delete/:photo_id", delete(delete_photo))
@@ -36,24 +36,18 @@ pub fn router(app_state: AppState) -> Router {
             "/:user_id/change_location/:photo_id",
             post(change_photo_location),
         )
+        .with_state(app_state.clone());
+
+    let public_router = Router::new()
+        .route("/", get(public_photos_list))
+        .route("/download/:photo_id", get(public_download_photo))
+        .route("/thumbnail/:photo_id", get(public_thumbnail_photo))
+        .route("/upload/:photo_id", post(public_upload_photo))
         .with_state(app_state);
 
-    Router::new().nest("/photos", user_router)
-}
-
-async fn get_user(pool: &Pool, user_id: i64) -> AxumResult<User> {
-    pool.send(GetUser::Id(user_id))
-        .await
-        .map_err(|e| StatusError::new_status("No such user", StatusCode::NOT_FOUND))
-}
-
-async fn get_user_and_photo(pool: &Pool, user_id: i64, photo_id: i64) -> AxumResult<(User, Photo)> {
-    let photo = pool
-        .send(GetPhoto { id: photo_id })
-        .await
-        .map_err(|e| StatusError::new_status("No such photo", StatusCode::NOT_FOUND))?;
-
-    Ok((get_user(pool, user_id).await?, photo))
+    Router::new()
+        .nest("/photos", user_router)
+        .nest("/public_photos", public_router)
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -76,51 +70,15 @@ async fn base_download_photo(
         .storage
         .resolve(photo.partial_path(&user).map_err(StatusError::create)?);
 
-    /* let file = NamedFile::open_async(storage.resolve(photo_path))
-    .await
-    .map_err(|_| StatusError::create("Could not open photo"))?
-    .use_etag(false);*/
-
-    let mime = mime_guess::from_path(&photo_path)
-        .first_or_octet_stream()
-        .as_ref()
-        .to_string();
-
-    let stream = ReaderStream::new(
-        fs::File::open(&photo_path)
-            .await
-            .map_err(|e| StatusError::create(e.to_string()))?,
-    );
-    // convert the `Stream` into an `axum::body::HttpBody`
-    let body = StreamBody::new(stream);
-
-    log::debug!("Mime: {}", mime);
-    let headers = [
-        (header::CONTENT_TYPE, mime),
-        (
-            header::CONTENT_DISPOSITION,
-            format!(
-                "attachment; filename=\"{}\"",
-                photo_path
-                    .file_name()
-                    .expect("File has no name")
-                    .to_string_lossy()
-            ),
-        ),
-    ];
-
-    Ok((headers, body))
+    file_to_response(&photo_path).await
 }
 
-/*async fn base_thumbnail_photo(
-    state: &NewAppState,
+async fn base_thumbnail_photo(
+    AppState { pool, storage }: AppState,
     user_id: i64,
     photo_id: i64,
-) -> Result<NamedFile> {
-    let db = state.db.clone();
-    let storage = state.storage.borrow();
-
-    let (user, photo) = get_user_and_photo(&db, user_id, photo_id).await?;
+) -> AxumResult<impl IntoResponse> {
+    let (user, photo) = get_user_and_photo(&pool, user_id, photo_id).await?;
 
     let photo_path = storage.resolve(photo.partial_path(&user).map_err(StatusError::create)?);
     let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
@@ -129,26 +87,22 @@ async fn base_download_photo(
 
     let thumbnail_generated = thumbnail_path.exists()
         || task::spawn_blocking(move || generate_thumbnail(photo_path_clone, thumbnail_path_clone))
-            .await?;
+            .await
+            .map_err(internal_error)?;
 
     let path = if thumbnail_generated {
         thumbnail_path
     } else {
         log::error!(
-            "Failed to generate thumbnail for photo {} - {}",
+            "Failed to generate thumbnail for photo {}: {}",
             photo_id,
             photo_path.display()
         );
         photo_path
     };
 
-    let file = NamedFile::open_async(path)
-        .await
-        .map_err(|_| StatusError::create("Could not open photo"))?
-        .use_etag(false);
-
-    Ok(file)
-}*/
+    file_to_response(&path).await
+}
 
 async fn base_upload_photo(
     AppState { pool, storage }: AppState,
@@ -226,7 +180,7 @@ async fn base_update_photo_caption(
     let updated_photo = pool
         .send(UpdatePhoto(changed_photo))
         .await
-        .map_err(|e| StatusError::create("Failed to update the photo caption: {e}"))?;
+        .map_err(|e| StatusError::create(format!("Failed to update the photo caption: {e}")))?;
 
     Ok(Json(updated_photo))
 }
@@ -278,11 +232,12 @@ pub async fn photos_list(
     }
 }
 
-/*#[get("/{user_id}/thumbnail/{photo_id}")]
-pub async fn thumbnail_photo(state: Data<AppState>, path: Path<(i64, i64)>) -> impl IntoResponse {
-    let (user_id, photo_id) = path.into_inner();
-    base_thumbnail_photo(state.get_ref(), user_id, photo_id).await
-}*/
+pub async fn thumbnail_photo(
+    State(state): State<AppState>,
+    Path((user_id, photo_id)): Path<(i64, i64)>,
+) -> impl IntoResponse {
+    base_thumbnail_photo(state, user_id, photo_id).await
+}
 
 pub async fn download_photo(
     State(state): State<AppState>,
@@ -383,24 +338,24 @@ pub async fn public_photos_list(State(state): State<AppState>) -> AxumResult<imp
     }
 }
 
-/*#[get("/thumbnail/{photo_id}")]
-pub async fn public_thumbnail_photo(state: Data<AppState>, photo_id: Path<i64>) -> impl IntoResponse {
-    base_thumbnail_photo(state.get_ref(), PUBLIC_USER_ID, photo_id.into_inner()).await
-}*/
+pub async fn public_thumbnail_photo(
+    State(state): State<AppState>,
+    Path(photo_id): Path<i64>,
+) -> impl IntoResponse {
+    base_thumbnail_photo(state, PUBLIC_USER_ID, photo_id).await
+}
 
-/*#[get("/download/{photo_id}")]
 pub async fn public_download_photo(
-    State(state): State<NewAppState>,
+    State(state): State<AppState>,
     Path(photo_id): Path<i64>,
 ) -> impl IntoResponse {
     base_download_photo(state, PUBLIC_USER_ID, photo_id).await
 }
 
-#[post("/upload")]
 pub async fn public_upload_photo(
-    State(state): State<NewAppState>,
-    query: Query<UploadData>,
+    State(state): State<AppState>,
+    Query(query): Query<UploadData>,
     payload: Multipart,
 ) -> impl IntoResponse {
-    base_upload_photo(state.get_ref(), PUBLIC_USER_ID, query.into_inner(), payload).await
-}*/
+    base_upload_photo(state, PUBLIC_USER_ID, query, payload).await
+}

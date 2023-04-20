@@ -1,7 +1,7 @@
 use crate::db::users_db::{GetUser, GetUsers};
 use crate::db::{internal_error, Handler, Pool};
 use crate::http::status_error::StatusError;
-use crate::http::AxumResult;
+use crate::http::utils::AxumResult;
 use crate::model::user::SimpleUser;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;

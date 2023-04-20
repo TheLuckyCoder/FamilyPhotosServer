@@ -1,7 +1,7 @@
 [package]
 name = "familyphotos"
 authors = ["Filea Răzvan Gheorghe <razvan.filea@gmail.com>"]
-version = "2.4.4"
+version = "3.0.0"
 edition = "2021"
 
 [profile.release]
@@ -10,24 +10,23 @@ lto = "thin"
 
 [dependencies]
 # Async Runtime
-tokio = { version = "1.27", features = ["macros", "rt-multi-thread", "fs", "io-std"] }
+tokio = { version = "1.27", features = ["rt-multi-thread", "fs", "io-std"] }
 tokio-util = { version = "0.7", features = ["io"]}
 async-trait = "0.1"
 
 # Axum
-axum = { version = "0.6", features = ["macros", "multipart"] }
+axum = { version = "0.6", features = ["multipart"] }
 tower = "0.4"
-bb8 = "0.8"
 
-# Actix
-actix = "0.13"
+# Https
+axum-server = { version = "0.4", features = ["tls-rustls"] }
 rustls = "0.20"
-rustls-pemfile = "1.0"
 
 # Database
-diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "r2d2", "postgres", "time"] }
+diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "postgres", "time"] }
 diesel_migrations = "2.0"
 diesel-async = { version = "0.2", features = ["postgres", "bb8"] }
+bb8 = "0.8"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

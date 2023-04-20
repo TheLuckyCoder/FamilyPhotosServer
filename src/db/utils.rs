@@ -13,9 +13,6 @@ pub struct Pool(
     pub Arc<Mutex<Hc128Rng>>,
 );
 
-pub type DatabaseConnection =
-    bb8::PooledConnection<'static, AsyncDieselConnectionManager<AsyncPgConnection>>;
-
 #[async_trait]
 pub trait Handler<M> {
     type Result;
