@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use tracing::info;
 
 #[derive(Clone)]
 pub struct FileStorage {
@@ -37,7 +38,7 @@ impl FileStorage {
 
         FileStorage {
             storage_folder: base_folder,
-            thumbnail_folder: thumbnail_folder,
+            thumbnail_folder,
         }
     }
 

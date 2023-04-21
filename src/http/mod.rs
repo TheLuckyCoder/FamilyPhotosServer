@@ -18,7 +18,7 @@ pub fn router(app_state: AppState) -> Router {
         .route("/", get(|| async { StatusCode::OK }))
         .route("/ping", get(|| async { StatusCode::OK }))
         .nest("/users", users_api::router(app_state.pool.clone()))
-        .nest("/photos", photos_api::router(app_state))
+        .merge(photos_api::router(app_state))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))

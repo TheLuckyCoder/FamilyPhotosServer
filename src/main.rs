@@ -11,7 +11,10 @@ use rand_hc::Hc128Rng;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 use tokio::sync::Mutex;
-use tracing::{error, info, Level};
+use tracing::{error, info};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
 
 use crate::db::users_db::{GetUsers, InsertUser};
 use crate::http::AppState;
@@ -33,36 +36,15 @@ mod utils;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-/*static mut USERS: Vec<User> = Vec::new();
-
-async fn any_user_auth_validator(
-    req: ServiceRequest,
-    credentials: basic::BasicAuth,
-) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    let found = unsafe { USERS.clone() }
-        .into_iter()
-        .find(|user| user.user_name == credentials.user_id());
-
-    if let Some(user) = found {
-        if let Some(password) = credentials.password() {
-            if get_hash_from_password(&password.to_string()) == user.password {
-                return Ok(req);
-            }
-        }
-    }
-
-    Err((Error::from(AuthenticationError::new(Basic::new())), req))
-}*/
-
 #[tokio::main]
 async fn main() -> Result<(), String> {
     EnvVariables::init();
     let vars = EnvVariables::get_all();
 
-    tracing_subscriber::fmt()
-        .with_max_level(Level::DEBUG)
-        .compact()
-        .finish();
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().compact())
+        .with(EnvFilter::from_default_env())
+        .init();
 
     let config =
         AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(vars.database_url);
@@ -96,10 +78,11 @@ async fn main() -> Result<(), String> {
     }
 
     {
-        let mut users: Vec<User> = match app_state.pool.send(GetUsers).await {
-            Ok(users) => users,
-            _ => panic!("Could not load users"),
-        };
+        let users: Vec<User> = app_state
+            .pool
+            .send(GetUsers)
+            .await
+            .expect("Could not load users");
 
         if users.is_empty() {
             let public_user = User {
@@ -114,15 +97,12 @@ async fn main() -> Result<(), String> {
                 public_user.password
             );
 
-            match app_state.pool.send(InsertUser::WithId(public_user)).await {
-                Ok(user) => users = vec![user],
-                _ => panic!("Failed to create public user"),
-            };
+            app_state
+                .pool
+                .send(InsertUser::WithId(public_user))
+                .await
+                .expect("Failed inserting the default public user");
         }
-
-        /*unsafe {
-            USERS = users;
-        }*/
     }
 
     info!("Server listening on port {}", vars.server_port);
@@ -145,7 +125,7 @@ async fn main() -> Result<(), String> {
             .serve(http_service)
             .await
     } else {
-        info!("Server configured successfully in HTTP mode");
+        info!("Server configured in HTTP mode");
         axum_server::bind(addr).serve(http_service).await
     }
     .expect("Failed to start axum server");
