@@ -58,8 +58,13 @@ async fn any_user_auth_validator(
 async fn main() -> Result<(), String> {
     EnvVariables::init();
     let vars = EnvVariables::get_all();
+
     env_logger::Builder::from_env(Env::default())
         .format_timestamp(None)
+        .init();
+    tracing_subscriber::fmt()
+        .with_target(false)
+        .compact()
         .init();
 
     let config =

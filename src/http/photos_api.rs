@@ -256,10 +256,10 @@ pub async fn get_photo_exif(
 pub async fn upload_photo(
     State(state): State<AppState>,
     Path(user_id): Path<i64>,
-    query: Query<UploadData>,
+    Query(query): Query<UploadData>,
     payload: Multipart,
 ) -> impl IntoResponse {
-    base_upload_photo(state, user_id, query.0, payload).await
+    base_upload_photo(state, user_id, query, payload).await
 }
 
 pub async fn delete_photo(
