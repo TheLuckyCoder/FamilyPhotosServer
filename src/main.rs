@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 use crate::db::*;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
-use env_logger::Env;
 use rand::SeedableRng;
 use rand_hc::Hc128Rng;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 use tokio::sync::Mutex;
+use tracing::{error, info, Level};
 
 use crate::db::users_db::{GetUsers, InsertUser};
 use crate::http::AppState;
@@ -59,13 +59,10 @@ async fn main() -> Result<(), String> {
     EnvVariables::init();
     let vars = EnvVariables::get_all();
 
-    env_logger::Builder::from_env(Env::default())
-        .format_timestamp(None)
-        .init();
     tracing_subscriber::fmt()
-        .with_target(false)
+        .with_max_level(Level::DEBUG)
         .compact()
-        .init();
+        .finish();
 
     let config =
         AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(vars.database_url);
@@ -93,8 +90,8 @@ async fn main() -> Result<(), String> {
 
     if vars.generate_thumbnails_background {
         match thumbnail::generate_background(&app_state.clone()).await {
-            Ok(_) => log::info!("Background thumbnail generation finished"),
-            Err(e) => log::error!("Could not start background thumbnail generation: {e}"),
+            Ok(_) => info!("Background thumbnail generation finished"),
+            Err(e) => error!("Could not start background thumbnail generation: {e}"),
         }
     }
 
@@ -128,7 +125,7 @@ async fn main() -> Result<(), String> {
         }*/
     }
 
-    log::info!("Server listening on port {}", vars.server_port);
+    info!("Server listening on port {}", vars.server_port);
 
     let http_service = http::router(app_state).into_make_service();
     let addr = SocketAddr::from(([127, 0, 0, 1], vars.server_port));
@@ -143,12 +140,12 @@ async fn main() -> Result<(), String> {
         .await
         .map_err(|e| format!("Could not load TLS config: {}", e))?;
 
-        log::info!("Server configured in HTTPS mode");
+        info!("Server configured in HTTPS mode");
         axum_server::bind_rustls(addr, config)
             .serve(http_service)
             .await
     } else {
-        log::info!("Server configured successfully in HTTP mode");
+        info!("Server configured successfully in HTTP mode");
         axum_server::bind(addr).serve(http_service).await
     }
     .expect("Failed to start axum server");

@@ -7,6 +7,7 @@ use tower_http::trace;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
 
+mod mw;
 mod photos_api;
 mod status_error;
 mod users_api;

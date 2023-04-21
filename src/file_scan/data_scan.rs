@@ -6,6 +6,7 @@ use std::time::Instant;
 use rayon::prelude::*;
 use time::PrimitiveDateTime;
 use tokio::task;
+use tracing::{debug, info, warn};
 use walkdir::{DirEntry, WalkDir};
 
 use crate::db::photos_db::{DeletePhotos, GetPhotos, InsertPhotos};
@@ -30,7 +31,7 @@ impl DataScan {
             let data_scan = Self::scan(users, app_state.storage.borrow());
             data_scan.update_database(&app_state).await;
 
-            log::debug!(
+            debug!(
                 "Photos scanning completed in {} seconds",
                 instant.elapsed().as_secs()
             );
@@ -38,7 +39,7 @@ impl DataScan {
     }
 
     fn scan(users: Vec<User>, storage: &FileStorage) -> Self {
-        log::debug!(
+        debug!(
             "Started scanning user's photos: {:?}",
             users
                 .iter()
@@ -76,7 +77,7 @@ impl DataScan {
             }
         }
 
-        log::info!("Finished scanning for {}", user.user_name);
+        info!("Finished scanning for {}", user.user_name);
 
         (user, photos)
     }
@@ -101,7 +102,7 @@ impl DataScan {
                 caption: None,
             }),
             None => {
-                log::warn!("No timestamp: {}", path.display());
+                warn!("No timestamp: {}", path.display());
                 None
             }
         }
@@ -118,7 +119,7 @@ impl DataScan {
             .collect();
 
         for (user, mut found_photos) in self.results {
-            log::info!(
+            info!(
                 "Scanned {} photos in user {}",
                 found_photos.len(),
                 user.user_name
@@ -129,7 +130,7 @@ impl DataScan {
             found_photos.retain(|photo| !existing_photos_names.contains(&photo.full_name()));
 
             if !found_photos.is_empty() {
-                log::info!(
+                info!(
                     "Adding {} new photos to user {}",
                     found_photos.len(),
                     user.user_name
@@ -154,7 +155,7 @@ impl DataScan {
                 .collect::<Vec<i64>>();
 
             if !removed_photos.is_empty() {
-                log::info!(
+                info!(
                     "Removing {} photos from user {}",
                     removed_photos.len(),
                     user.user_name

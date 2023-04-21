@@ -21,8 +21,10 @@ axum = { version = "0.6", features = ["multipart"] }
 tower = "0.4"
 tower-http = { version = "0.4", features = ["trace"] }
 axum-server = { version = "0.4", features = ["tls-rustls"] }
+
+# Logging
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"]}
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Database
 diesel = { version = "2.0", default-features = false, features = ["32-column-tables", "postgres", "time", "uuid"] }
@@ -33,10 +35,6 @@ bb8 = "0.8"
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-
-# Logging
-env_logger = { version = "0.10", default-features = false, features = ["humantime", "color"] }
-log = "0.4"
 
 # Rand
 rand = "0.8"

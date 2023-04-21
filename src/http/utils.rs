@@ -9,6 +9,7 @@ use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use tokio::fs;
 use tokio_util::io::ReaderStream;
+use tracing::debug;
 
 pub type AxumResult<T> = axum::response::Result<T>;
 
@@ -45,7 +46,7 @@ pub async fn file_to_response(photo_path: &std::path::Path) -> AxumResult<impl I
     // convert the `Stream` into an `axum::body::HttpBody`
     let body = StreamBody::new(stream);
 
-    log::debug!("Mime: {}", mime);
+    debug!("Mime: {}", mime);
     let headers = [
         (header::CONTENT_TYPE, mime),
         (

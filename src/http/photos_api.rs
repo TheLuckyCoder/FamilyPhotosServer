@@ -17,6 +17,7 @@ use axum::{
 use futures_util::TryStreamExt;
 use tokio::io::AsyncWriteExt;
 use tokio::{fs, task};
+use tracing::{error, info};
 
 const PUBLIC_USER_ID: i64 = 1;
 
@@ -93,7 +94,7 @@ async fn base_thumbnail_photo(
     let path = if thumbnail_generated {
         thumbnail_path
     } else {
-        log::error!(
+        error!(
             "Failed to generate thumbnail for photo {}: {}",
             photo_id,
             photo_path.display()
@@ -131,7 +132,7 @@ async fn base_upload_photo(
         };
 
         let filepath = storage.resolve(format!("{}/{}{}", user.user_name, folder, file_name));
-        log::info!("Uploading file to {}", filepath.to_string_lossy());
+        info!("Uploading file to {}", filepath.to_string_lossy());
 
         let mut file = fs::File::create(filepath)
             .await
@@ -322,7 +323,7 @@ pub async fn change_photo_location(
         .await
         .map_err(|_| StatusError::create("Something went wrong moving the photo"))?;
 
-    log::info!("Moved photo from {source_path} to {destination_path} successfully");
+    info!("Moved photo from {source_path} to {destination_path} successfully");
 
     Ok(Json(updated_photo))
 }

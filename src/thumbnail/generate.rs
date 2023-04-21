@@ -9,6 +9,7 @@ use exif::{In, Tag};
 use image::imageops::FilterType;
 use image::DynamicImage;
 use mime_guess::MimeGuess;
+use tracing::{error, info};
 use wait_timeout::ChildExt;
 
 const THUMBNAIL_TARGET_SIZE: u32 = 500;
@@ -32,7 +33,7 @@ fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> std::io::Resul
 }
 
 fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path: R) -> Option<()> {
-    log::info!(
+    info!(
         "Generating thumbnail for video {}",
         load_path.as_ref().display()
     );
@@ -86,7 +87,7 @@ where
         return match generate_heic_thumbnail(load_path.as_ref(), save_path.as_ref()) {
             Ok(result) => result,
             Err(e) => {
-                log::error!("Error generating heic/heif thumbnail: {e}");
+                error!("Error generating heic/heif thumbnail: {e}");
                 false
             }
         };

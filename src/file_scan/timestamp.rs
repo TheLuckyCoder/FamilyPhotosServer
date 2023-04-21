@@ -9,6 +9,7 @@ use std::path::Path;
 use std::str::from_utf8;
 use time::macros::format_description;
 use time::{OffsetDateTime, PrimitiveDateTime};
+use tracing::error;
 
 pub fn get_timestamp_for_path<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
     get_json_timestamp(path.as_ref())
@@ -47,7 +48,7 @@ fn get_json_timestamp(path: &Path) -> Option<u64> {
     match json {
         Ok(json_data) => json_data.photo_taken_time.or(json_data.creation_time),
         Err(e) => {
-            log::error!("Failed parsing Json ({json_file_name}): {e}");
+            error!("Failed parsing Json ({json_file_name}): {e}");
             None
         }
     }
