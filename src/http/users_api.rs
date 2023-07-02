@@ -9,16 +9,18 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use axum_login::PostgresStore;
+use axum_login::{PostgresStore, RequireAuthorizationLayer};
 use serde::Deserialize;
 use tracing::warn;
 
 pub type AuthContext = axum_login::extractors::AuthContext<String, User, PostgresStore<User>>;
+pub type RequireAuth = RequireAuthorizationLayer<String, User>;
 
 pub fn router(users_repo: UsersRepository) -> Router {
     let protected_router = Router::new()
         .route("/list", get(list_users))
         // .route("/get/:name", get(get_user))
+        .route_layer(RequireAuth::login())
         .with_state(users_repo.clone());
 
     Router::new()

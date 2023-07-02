@@ -1,5 +1,5 @@
 use crate::http::status_error::StatusError;
-use crate::http::users_api::AuthContext;
+use crate::http::users_api::{AuthContext, RequireAuth};
 use crate::http::utils::{file_to_response, AxumResult};
 use crate::http::AppState;
 use crate::model::photo::PhotoBody;
@@ -30,7 +30,8 @@ pub fn router(app_state: AppState) -> Router {
         .route("/upload", post(upload_photo))
         .route("/delete/:photo_id", delete(delete_photo))
         .route("/change_location/:photo_id", post(change_photo_location))
-        .with_state(app_state.clone());
+        .with_state(app_state.clone())
+        .route_layer(RequireAuth::login());
 
     let public_router = Router::new()
         .route("/", get(public_photos_list))
@@ -40,6 +41,7 @@ pub fn router(app_state: AppState) -> Router {
     Router::new()
         .nest("/photos", user_router)
         .nest("/public_photos", public_router)
+        .route_layer(RequireAuth::login())
 }
 
 #[derive(Debug, serde::Deserialize)]
