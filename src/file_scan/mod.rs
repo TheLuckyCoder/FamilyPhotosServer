@@ -4,6 +4,6 @@ use crate::http::AppState;
 mod data_scan;
 mod timestamp;
 
-pub async fn scan_new_files(app_state: AppState) {
-    DataScan::run(app_state).await;
+pub fn scan_new_files(app_state: AppState) {
+    DataScan::run(app_state);
 }

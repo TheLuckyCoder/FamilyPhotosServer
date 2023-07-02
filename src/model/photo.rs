@@ -1,40 +1,24 @@
-use diesel::{AsChangeset, Identifiable, Insertable, Queryable};
 use serde::{Deserialize, Serialize};
 
-use crate::model::user::User;
-use crate::schema::photos;
 use crate::utils::primitive_date_time_serde;
 
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    Identifiable,
-    AsChangeset,
-    Queryable,
-    Insertable,
-    Serialize,
-    Deserialize,
-)]
-#[diesel(table_name = photos, treat_none_as_null = true)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct Photo {
     pub id: i64,
-    pub owner: i64,
+    pub user_name: String,
     pub name: String,
     #[serde(with = "primitive_date_time_serde")]
-    pub time_created: time::PrimitiveDateTime,
+    pub created_at: time::PrimitiveDateTime,
     pub file_size: i64,
     pub folder: Option<String>,
-    pub caption: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct PhotoBody {
-    pub owner: i64,
+    pub user_name: String,
     pub name: String,
-    pub time_created: time::PrimitiveDateTime,
+    pub created_at: time::PrimitiveDateTime,
     pub file_size: i64,
     pub folder: Option<String>,
 }
@@ -49,12 +33,8 @@ impl Photo {
         folder_path + self.name.as_str()
     }
 
-    pub fn partial_path(&self, user: &User) -> Result<String, String> {
-        if self.owner != user.id {
-            return Err("Photo owner does not match user id".to_string());
-        }
-
-        Ok(format!("{}/{}", user.user_name, self.full_name()))
+    pub fn partial_path(&self) -> Result<String, String> {
+        Ok(format!("{}/{}", self.user_name, self.full_name()))
     }
 
     pub fn partial_thumbnail_path(&self) -> String {
@@ -70,5 +50,17 @@ impl Photo {
         };
 
         format!("{}.{}", self.id, special_extension.unwrap_or("webp"))
+    }
+}
+
+// TODO: Cleanup
+impl PhotoBody {
+    pub fn full_name(&self) -> String {
+        let folder_path = match self.folder.as_ref() {
+            None => String::new(),
+            Some(folder) => format!("{folder}/"),
+        };
+
+        folder_path + self.name.as_str()
     }
 }

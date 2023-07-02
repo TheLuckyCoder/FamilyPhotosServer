@@ -1,9 +1,8 @@
-use crate::db::{Handler, Pool};
 use clap::{Parser, Subcommand};
 
-use crate::db::users_db::{DeleteUser, GetUsers, InsertUser};
-use crate::model::user::SimpleUser;
-use crate::utils::password_hash::generate_password;
+use crate::http::AppState;
+use crate::model::user::{SimpleUser, User};
+use crate::utils::password_hash::{generate_password, get_hash_from_password};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -28,7 +27,7 @@ enum UsersCommand {
         user_name: String,
         #[arg(short, long)]
         /// The name visible to the user
-        display_name: String,
+        name: String,
         #[arg(short, long)]
         /// Random password will be generated if not provided
         password: Option<String>,
@@ -45,7 +44,7 @@ enum UsersCommand {
 /**
  * @return true if the program should exit
  */
-pub async fn run_cli(pool: &Pool) -> bool {
+pub async fn run_cli(state: &AppState) -> bool {
     let cli = Cli::parse();
 
     let cmd = cli.commands;
@@ -57,14 +56,17 @@ pub async fn run_cli(pool: &Pool) -> bool {
         Commands::Users(user_command) => match user_command {
             UsersCommand::Create {
                 user_name,
-                display_name,
+                name,
                 password,
             } => {
-                let user_result = pool
-                    .send(InsertUser::WithoutId {
+                let user_result = state
+                    .users_repo
+                    .insert_user(User {
                         user_name,
-                        display_name,
-                        hashed_password: password.unwrap_or_else(generate_password),
+                        name,
+                        password_hash: get_hash_from_password(
+                            &password.unwrap_or_else(generate_password),
+                        ),
                     })
                     .await;
 
@@ -73,7 +75,7 @@ pub async fn run_cli(pool: &Pool) -> bool {
                     _ => eprintln!("Error creating user"),
                 }
             }
-            UsersCommand::List => match pool.send(GetUsers).await {
+            UsersCommand::List => match state.users_repo.get_users().await {
                 Ok(users) => {
                     println!("Users:");
                     for user in users {
@@ -83,12 +85,7 @@ pub async fn run_cli(pool: &Pool) -> bool {
                 _ => eprintln!("Error listing users"),
             },
             UsersCommand::Remove { user_name } => {
-                match pool
-                    .send(DeleteUser {
-                        user_name: user_name.clone(),
-                    })
-                    .await
-                {
+                match state.users_repo.delete_user(&user_name).await {
                     Ok(_) => println!("Deleted user with user name: {user_name}"),
                     _ => eprintln!("Failed to remove user with user name: {user_name}"),
                 }

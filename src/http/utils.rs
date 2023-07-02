@@ -1,36 +1,12 @@
-use crate::db::photos_db::GetPhoto;
-use crate::db::users_db::GetUser;
-use crate::db::{Handler, Pool};
 use crate::http::status_error::StatusError;
-use crate::model::photo::Photo;
-use crate::model::user::User;
 use axum::body::StreamBody;
-use axum::http::{header, StatusCode};
+use axum::http::header;
 use axum::response::IntoResponse;
 use tokio::fs;
 use tokio_util::io::ReaderStream;
 use tracing::debug;
 
 pub type AxumResult<T> = axum::response::Result<T>;
-
-pub async fn get_user(pool: &Pool, user_id: i64) -> AxumResult<User> {
-    pool.send(GetUser::Id(user_id))
-        .await
-        .map_err(|_| StatusError::new_status("No such user", StatusCode::NOT_FOUND))
-}
-
-pub async fn get_user_and_photo(
-    pool: &Pool,
-    user_id: i64,
-    photo_id: i64,
-) -> AxumResult<(User, Photo)> {
-    let photo = pool
-        .send(GetPhoto { id: photo_id })
-        .await
-        .map_err(|_| StatusError::new_status("No such photo", StatusCode::NOT_FOUND))?;
-
-    Ok((get_user(pool, user_id).await?, photo))
-}
 
 pub async fn file_to_response(photo_path: &std::path::Path) -> AxumResult<impl IntoResponse> {
     let mime = mime_guess::from_path(photo_path)

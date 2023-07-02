@@ -23,7 +23,7 @@ pub struct EnvVariables {
 
 impl EnvVariables {
     pub fn init() {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
         if std::env::var("RUST_LOG").is_err() {
             println!("Logging is disabled, set RUST_LOG to enable logging")
         }

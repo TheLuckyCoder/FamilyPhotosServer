@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::info;
 
 #[derive(Clone)]
 pub struct FileStorage {

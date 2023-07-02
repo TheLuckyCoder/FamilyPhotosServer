@@ -1,3 +1,5 @@
+use axum::http::StatusCode;
+use axum::response::{ErrorResponse, IntoResponse};
 use exif::In;
 use serde::Serialize;
 use std::fs;
@@ -34,4 +36,13 @@ pub fn read_exif<P: AsRef<Path>>(absolute_path: P) -> Option<Vec<ExifField>> {
     }
 
     Some(exif_data)
+}
+
+/// Utility function for mapping any error into a `500 Internal Server Error`
+/// response.
+pub fn internal_error<E>(err: E) -> ErrorResponse
+where
+    E: std::error::Error,
+{
+    ErrorResponse::from((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response())
 }

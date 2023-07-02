@@ -1,34 +1,26 @@
-extern crate diesel;
+use std::net::SocketAddr;
 
 use axum_server::tls_rustls::RustlsConfig;
-use std::net::SocketAddr;
-use std::sync::Arc;
-
-use crate::db::*;
-use diesel_async::pooled_connection::AsyncDieselConnectionManager;
-use rand::SeedableRng;
-use rand_hc::Hc128Rng;
+use sqlx::postgres::PgPoolOptions;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
-use tokio::sync::Mutex;
 use tracing::{error, info};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
-use crate::db::users_db::{GetUsers, InsertUser};
 use crate::http::AppState;
 use crate::model::user::User;
+use crate::repo::photos_repo::PhotosRepository;
+use crate::repo::users_repo::UsersRepository;
 use crate::utils::env_reader::EnvVariables;
 use crate::utils::file_storage::FileStorage;
-use crate::utils::password_hash::{generate_password, get_hash_from_password};
 
 mod cli;
-mod db;
 mod file_scan;
 mod http;
 mod model;
-mod schema;
+mod repo;
 mod thumbnail;
 mod utils;
 
@@ -38,70 +30,43 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() -> Result<(), String> {
+    // Environment Variables
     EnvVariables::init();
     let vars = EnvVariables::get_all();
 
+    // Logging
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer().compact())
         .with(EnvFilter::from_default_env())
         .init();
 
-    let config =
-        AsyncDieselConnectionManager::<diesel_async::AsyncPgConnection>::new(vars.database_url);
-    let pool = Pool(
-        bb8::Pool::builder()
-            .build(config)
-            .await
-            .expect("Error building the connection pool"),
-        Arc::new(Mutex::new(Hc128Rng::from_entropy())),
-    );
+    // Database pool and app state
+    let pool = PgPoolOptions::new()
+        .max_connections(128)
+        .connect(&vars.database_url)
+        .await
+        .expect("Error building the connection pool");
 
     let app_state = AppState {
-        pool,
         storage: FileStorage::new(vars.storage_path, vars.thumbnail_path),
+        users_repo: UsersRepository::new(pool.clone()),
+        photos_repo: PhotosRepository::new(pool),
     };
 
-    if cli::run_cli(&app_state.pool).await {
+    // Run the CLI
+    if cli::run_cli(&app_state).await {
         return Ok(());
     }
 
     // Scan the storage directory for new photos in the background
     if vars.scan_new_files {
-        file_scan::scan_new_files(app_state.clone()).await;
+        file_scan::scan_new_files(app_state.clone());
     }
 
     if vars.generate_thumbnails_background {
-        match thumbnail::generate_background(&app_state.clone()).await {
+        match thumbnail::generate_background(app_state.clone()).await {
             Ok(_) => info!("Background thumbnail generation finished"),
             Err(e) => error!("Could not start background thumbnail generation: {e}"),
-        }
-    }
-
-    {
-        let users: Vec<User> = app_state
-            .pool
-            .send(GetUsers)
-            .await
-            .expect("Could not load users");
-
-        if users.is_empty() {
-            let public_user = User {
-                id: 1,
-                display_name: "Public".to_string(),
-                user_name: "public".to_string(),
-                password: generate_password(),
-            };
-
-            println!(
-                "No users found, creating public user with password: {}",
-                public_user.password
-            );
-
-            app_state
-                .pool
-                .send(InsertUser::WithId(public_user))
-                .await
-                .expect("Failed inserting the default public user");
         }
     }
 
