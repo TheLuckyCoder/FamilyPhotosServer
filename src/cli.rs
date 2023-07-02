@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 
 use crate::http::AppState;
-use crate::model::user::{SimpleUser, User};
+use crate::model::user::User;
 use crate::utils::password_hash::{generate_hash_from_password, generate_random_password};
 
 #[derive(Parser)]
@@ -59,19 +59,21 @@ pub async fn run_cli(state: &AppState) -> bool {
                 name,
                 password,
             } => {
+                let final_password = &password.unwrap_or_else(generate_random_password);
                 let user_result = state
                     .users_repo
                     .insert_user(User {
                         user_name,
                         name,
-                        password_hash: generate_hash_from_password(
-                            &password.unwrap_or_else(generate_random_password),
-                        ),
+                        password_hash: generate_hash_from_password(final_password),
                     })
                     .await;
 
                 match user_result {
-                    Ok(user) => println!("User created: {:?}", SimpleUser::from_user(&user)),
+                    Ok(user) => println!(
+                        "User created with {{user name=\"{}\", name=\"{}\", password=\"{}\"}}",
+                        user.user_name, user.name, final_password
+                    ),
                     _ => eprintln!("Error creating user"),
                 }
             }
@@ -79,7 +81,10 @@ pub async fn run_cli(state: &AppState) -> bool {
                 Ok(users) => {
                     println!("Users:");
                     for user in users {
-                        println!("\t{:?}", SimpleUser::from_user(&user));
+                        println!(
+                            "\t{{user name=\"{}\", name=\"{}\"}}",
+                            user.user_name, user.name
+                        );
                     }
                 }
                 _ => eprintln!("Error listing users"),
