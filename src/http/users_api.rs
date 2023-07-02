@@ -3,7 +3,7 @@ use crate::http::utils::AxumResult;
 use crate::model::user::{SimpleUser, User};
 use crate::repo::users_repo::UsersRepository;
 use crate::utils::internal_error;
-use crate::utils::password_hash::get_hash_from_password;
+use crate::utils::password_hash::validate_credentials;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -11,6 +11,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use axum_login::PostgresStore;
 use serde::Deserialize;
+use tracing::warn;
 
 pub type AuthContext = axum_login::extractors::AuthContext<String, User, PostgresStore<User>>;
 
@@ -40,9 +41,14 @@ async fn login(
     Path(login_user): Path<LoginUser>,
 ) -> AxumResult<impl IntoResponse> {
     let user = user_repo.get_user(login_user.user_name).await;
-    let login_password_hash = get_hash_from_password(&login_user.password);
 
-    if user.password_hash != login_password_hash {
+    let valid_credentials = validate_credentials(&user.password_hash, &login_user.password)
+        .map_err(|e| {
+            warn!("Failed to validate credentials: {e}");
+            StatusError::create("Failed to validate credentials")
+        })?;
+
+    if !valid_credentials {
         return Err(StatusError::new_status(
             "Wrong user name or password",
             StatusCode::UNAUTHORIZED,

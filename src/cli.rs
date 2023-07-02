@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 
 use crate::http::AppState;
 use crate::model::user::{SimpleUser, User};
-use crate::utils::password_hash::{generate_password, get_hash_from_password};
+use crate::utils::password_hash::{generate_hash_from_password, generate_random_password};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -64,8 +64,8 @@ pub async fn run_cli(state: &AppState) -> bool {
                     .insert_user(User {
                         user_name,
                         name,
-                        password_hash: get_hash_from_password(
-                            &password.unwrap_or_else(generate_password),
+                        password_hash: generate_hash_from_password(
+                            &password.unwrap_or_else(generate_random_password),
                         ),
                     })
                     .await;

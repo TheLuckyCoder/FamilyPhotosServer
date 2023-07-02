@@ -47,6 +47,11 @@ async fn main() -> Result<(), String> {
         .await
         .expect("Error building the connection pool");
 
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
     let app_state = AppState {
         storage: FileStorage::new(vars.storage_path, vars.thumbnail_path),
         users_repo: UsersRepository::new(pool.clone()),
