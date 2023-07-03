@@ -40,10 +40,7 @@ impl DataScan {
     fn scan(users: Vec<User>, storage: &FileStorage) -> Self {
         debug!(
             "Started scanning user's photos: {:?}",
-            users
-                .iter()
-                .map(|user| user.user_name.clone())
-                .collect::<Vec<_>>()
+            users.iter().map(|user| user.id.clone()).collect::<Vec<_>>()
         );
 
         let results = users
@@ -57,7 +54,7 @@ impl DataScan {
     fn scan_user_photos(storage: &FileStorage, user: User) -> (User, Vec<PhotoBody>) {
         let mut photos = Vec::with_capacity(8192 * 4);
 
-        let user_path = storage.resolve(&user.user_name);
+        let user_path = storage.resolve(&user.id);
         if !user_path.exists() {
             fs::create_dir(user_path).unwrap()
         } else {
@@ -70,13 +67,13 @@ impl DataScan {
                     continue;
                 }
 
-                if let Some(photo) = Self::parse_image(user.user_name.clone(), entry) {
+                if let Some(photo) = Self::parse_image(user.id.clone(), entry) {
                     photos.push(photo)
                 }
             }
         }
 
-        info!("Finished scanning for {}", user.user_name);
+        info!("Finished scanning for {}", user.id);
 
         (user, photos)
     }
@@ -119,11 +116,7 @@ impl DataScan {
             .collect();
 
         for (user, mut found_photos) in self.results {
-            info!(
-                "Scanned {} photos in user {}",
-                found_photos.len(),
-                user.user_name
-            );
+            info!("Scanned {} photos in user {}", found_photos.len(), user.id);
 
             // Add any photo that was not already in the db
             // Keep only new photos
@@ -133,7 +126,7 @@ impl DataScan {
                 info!(
                     "Adding {} new photos to user {}",
                     found_photos.len(),
-                    user.user_name
+                    user.id
                 );
 
                 for chunk in found_photos.chunks(512) {
@@ -147,9 +140,9 @@ impl DataScan {
             let removed_photos = existing_photos
                 .iter()
                 .filter(|photo| {
-                    photo.user_name == user.user_name
+                    photo.user_name == user.id
                         && !storage
-                            .resolve(format!("{}/{}", user.user_name, photo.full_name()))
+                            .resolve(format!("{}/{}", user.id, photo.full_name()))
                             .exists()
                 })
                 .map(|photo| photo.id)
@@ -159,7 +152,7 @@ impl DataScan {
                 info!(
                     "Removing {} photos from user {}",
                     removed_photos.len(),
-                    user.user_name
+                    user.id
                 );
 
                 // TODO: Improve performance

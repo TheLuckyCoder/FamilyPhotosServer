@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use sqlx::PgPool;
 
 use crate::http::AppState;
 use crate::model::user::User;
@@ -14,8 +15,14 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     #[command(subcommand)]
-    /// Add or remove users
+    /// Manage users
     Users(UsersCommand),
+    #[command(subcommand)]
+    /// Manage Photos
+    Photos(PhotosCommand),
+    #[command(subcommand)]
+    /// Manage Sessions
+    Sessions(SessionsCommand),
 }
 
 #[derive(Subcommand)]
@@ -41,10 +48,22 @@ enum UsersCommand {
     },
 }
 
+#[derive(Subcommand)]
+enum PhotosCommand {
+    /// Show photos count
+    Count,
+}
+
+#[derive(Subcommand)]
+enum SessionsCommand {
+    /// Clear all sessions
+    Clear,
+}
+
 /**
  * @return true if the program should exit
  */
-pub async fn run_cli(state: &AppState) -> bool {
+pub async fn run_cli(pool: &PgPool, state: &AppState) -> bool {
     let cli = Cli::parse();
 
     let cmd = cli.commands;
@@ -53,50 +72,85 @@ pub async fn run_cli(state: &AppState) -> bool {
     }
 
     match cmd.unwrap() {
-        Commands::Users(user_command) => match user_command {
-            UsersCommand::Create {
-                user_name,
-                name,
-                password,
-            } => {
-                let final_password = &password.unwrap_or_else(generate_random_password);
-                let user_result = state
-                    .users_repo
-                    .insert_user(User {
-                        user_name,
-                        name,
-                        password_hash: generate_hash_from_password(final_password),
-                    })
-                    .await;
-
-                match user_result {
-                    Ok(user) => println!(
-                        "User created with {{user name=\"{}\", name=\"{}\", password=\"{}\"}}",
-                        user.user_name, user.name, final_password
-                    ),
-                    _ => eprintln!("Error creating user"),
-                }
-            }
-            UsersCommand::List => match state.users_repo.get_users().await {
-                Ok(users) => {
-                    println!("Users:");
-                    for user in users {
-                        println!(
-                            "\t{{user name=\"{}\", name=\"{}\"}}",
-                            user.user_name, user.name
-                        );
-                    }
-                }
-                _ => eprintln!("Error listing users"),
-            },
-            UsersCommand::Remove { user_name } => {
-                match state.users_repo.delete_user(&user_name).await {
-                    Ok(_) => println!("Deleted user with user name: {user_name}"),
-                    _ => eprintln!("Failed to remove user with user name: {user_name}"),
-                }
-            }
-        },
-    }
+        Commands::Users(command) => user_commands(state, command).await,
+        Commands::Photos(command) => photos_commands(state, command).await,
+        Commands::Sessions(command) => sessions_commands(pool, command).await,
+    };
 
     true
+}
+
+async fn user_commands(state: &AppState, command: UsersCommand) {
+    match command {
+        UsersCommand::Create {
+            user_name,
+            name,
+            password,
+        } => {
+            let final_password = &password.unwrap_or_else(generate_random_password);
+            let user_result = state
+                .users_repo
+                .insert_user(User {
+                    id: user_name,
+                    name,
+                    password_hash: generate_hash_from_password(final_password),
+                })
+                .await;
+
+            match user_result {
+                Ok(user) => println!(
+                    "User created with {{user name=\"{}\", name=\"{}\", password=\"{}\"}}",
+                    user.id, user.name, final_password
+                ),
+                _ => eprintln!("Error creating user"),
+            }
+        }
+        UsersCommand::List => match state.users_repo.get_users().await {
+            Ok(users) => {
+                println!("Users:");
+                for user in users {
+                    println!("\t{{user name=\"{}\", name=\"{}\"}}", user.id, user.name);
+                }
+            }
+            _ => eprintln!("Error listing users"),
+        },
+        UsersCommand::Remove { user_name } => {
+            match state.users_repo.delete_user(&user_name).await {
+                Ok(_) => println!("Deleted user with user name: {user_name}"),
+                _ => eprintln!("Failed to remove user with user name: {user_name}"),
+            }
+        }
+    }
+}
+
+async fn photos_commands(state: &AppState, command: PhotosCommand) {
+    match command {
+        PhotosCommand::Count => {
+            let users = state
+                .users_repo
+                .get_users()
+                .await
+                .expect("Failed to get users");
+
+            for user in users {
+                let count = state
+                    .photos_repo
+                    .get_photos_by_user(user.id.as_str())
+                    .await
+                    .unwrap()
+                    .len();
+
+                println!("Username={}\tPhotos Count={}", user.id, count);
+            }
+        }
+    }
+}
+
+async fn sessions_commands(pool: &PgPool, command: SessionsCommand) {
+    match command {
+        SessionsCommand::Clear => sqlx::query!("delete from session")
+            .execute(pool)
+            .await
+            .expect("Failed to clear sessions"),
+    };
 }

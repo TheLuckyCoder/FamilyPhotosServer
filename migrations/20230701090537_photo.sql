@@ -10,5 +10,5 @@ CREATE TABLE photos
     PRIMARY KEY (id),
     CONSTRAINT fk_user
         FOREIGN KEY (user_name)
-            REFERENCES users (user_name)
+            REFERENCES users (id)
 );

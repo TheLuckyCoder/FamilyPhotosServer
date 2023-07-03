@@ -1,7 +1,8 @@
 use std::net::SocketAddr;
 
 use axum_server::tls_rustls::RustlsConfig;
-use sqlx::postgres::PgPoolOptions;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use sqlx::ConnectOptions;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 use tracing::{error, info};
@@ -55,11 +56,11 @@ async fn main() -> Result<(), String> {
     let app_state = AppState {
         storage: FileStorage::new(vars.storage_path, vars.thumbnail_path),
         users_repo: UsersRepository::new(pool.clone()),
-        photos_repo: PhotosRepository::new(pool),
+        photos_repo: PhotosRepository::new(pool.clone()),
     };
 
     // Run the CLI
-    if cli::run_cli(&app_state).await {
+    if cli::run_cli(&pool, &app_state).await {
         return Ok(());
     }
 
@@ -77,7 +78,7 @@ async fn main() -> Result<(), String> {
 
     info!("Server listening on port {}", vars.server_port);
 
-    let http_service = http::router(app_state).into_make_service();
+    let http_service = http::router(pool, app_state).into_make_service();
     let addr = SocketAddr::from(([127, 0, 0, 1], vars.server_port));
 
     if vars.use_https {
@@ -88,7 +89,7 @@ async fn main() -> Result<(), String> {
                 .expect("SSL_PRIVATE_KEY_PATH variable is missing"),
         )
         .await
-        .map_err(|e| format!("Could not load TLS config: {}", e))?;
+        .map_err(|e| format!("Failed to load TLS config: {}", e))?;
 
         info!("Server configured in HTTPS mode");
         axum_server::bind_rustls(addr, config)

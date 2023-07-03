@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct User {
-    pub user_name: String,
+    pub id: String,
     pub name: String,
     pub password_hash: String,
 }
@@ -21,14 +21,14 @@ impl SimpleUser {
     pub fn from_user(user: &User) -> Self {
         SimpleUser {
             display_name: user.name.clone(),
-            user_name: user.user_name.clone(),
+            user_name: user.id.clone(),
         }
     }
 }
 
 impl AuthUser<String> for User {
     fn get_id(&self) -> String {
-        self.user_name.clone()
+        self.id.clone()
     }
 
     fn get_password_hash(&self) -> SecretVec<u8> {

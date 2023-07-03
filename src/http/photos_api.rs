@@ -30,18 +30,18 @@ pub fn router(app_state: AppState) -> Router {
         .route("/upload", post(upload_photo))
         .route("/delete/:photo_id", delete(delete_photo))
         .route("/change_location/:photo_id", post(change_photo_location))
-        .with_state(app_state.clone())
-        .route_layer(RequireAuth::login());
+        .with_state(app_state.clone());
+    // .route_layer(RequireAuth::login());
 
     let public_router = Router::new()
         .route("/", get(public_photos_list))
         .route("/upload", post(public_upload_photo))
         .with_state(app_state);
+    // .route_layer(RequireAuth::login());
 
     Router::new()
         .nest("/photos", user_router)
         .nest("/public_photos", public_router)
-        .route_layer(RequireAuth::login())
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -112,9 +112,7 @@ pub async fn photos_list(
 ) -> AxumResult<impl IntoResponse> {
     let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
 
-    Ok(Json(
-        state.photos_repo.get_photos_by_user(user.user_name).await?,
-    ))
+    Ok(Json(state.photos_repo.get_photos_by_user(user.id).await?))
 }
 
 pub async fn thumbnail_photo(
@@ -202,7 +200,7 @@ pub async fn upload_photo(
 ) -> impl IntoResponse {
     let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
 
-    base_upload_photo(state, user.user_name, query, payload).await
+    base_upload_photo(state, user.id, query, payload).await
 }
 
 pub async fn delete_photo(

@@ -9,6 +9,7 @@ use std::path::Path;
 pub mod env_reader;
 pub mod file_storage;
 pub mod password_hash;
+pub mod pg_session_store;
 pub mod primitive_date_time_serde;
 
 #[derive(Debug, Serialize)]

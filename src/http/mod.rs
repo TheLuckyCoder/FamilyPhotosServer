@@ -1,9 +1,15 @@
+use crate::model::user::User;
 use crate::repo::photos_repo::PhotosRepository;
 use crate::repo::users_repo::UsersRepository;
 use crate::utils::file_storage::FileStorage;
+use crate::utils::pg_session_store::PgSessionStore;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::Router;
+use axum_login::axum_sessions::async_session::MemoryStore;
+use axum_login::axum_sessions::SessionLayer;
+use axum_login::{AuthLayer, PostgresStore};
+use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{cors, trace};
@@ -14,18 +20,29 @@ mod status_error;
 mod users_api;
 mod utils;
 
-pub fn router(app_state: AppState) -> Router {
+pub fn router(pool: PgPool, app_state: AppState) -> Router {
+    let secret =
+        "YX#Wj/+}(%N6N`tTwnt%bypLvg}lMB<50(ip+xT_*po%B4^*}7-%GLw-p/PT[8jWyLxi%H#qH`a]4YAPG_6s"
+            .as_bytes();
+    let session_store = PgSessionStore::new(pool.clone());
+    let session_layer = SessionLayer::new(session_store, secret);
+
+    let user_store = PostgresStore::<User>::new(pool);
+    let auth_layer = AuthLayer::new(user_store, secret);
+
     Router::new()
         .route("/", get(|| async { StatusCode::OK }))
         .route("/ping", get(|| async { StatusCode::OK }))
-        .nest("/users", users_api::router(app_state.users_repo.clone()))
+        .merge(users_api::router(app_state.users_repo.clone()))
         .merge(photos_api::router(app_state))
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                .make_span_with(trace::DefaultMakeSpan::new().level(Level::DEBUG))
                 .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
         )
         .layer(CorsLayer::new().allow_origin(cors::Any))
+        .layer(auth_layer)
+        .layer(session_layer)
 }
 
 #[derive(Clone)]
