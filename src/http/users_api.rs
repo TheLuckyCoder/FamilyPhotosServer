@@ -1,4 +1,4 @@
-use crate::http::status_error::StatusError;
+use crate::http::utils::status_error::StatusError;
 use crate::http::utils::AxumResult;
 use crate::model::user::{SimpleUser, User};
 use crate::repo::users_repo::UsersRepository;

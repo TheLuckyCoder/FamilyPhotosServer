@@ -1,5 +1,5 @@
-use crate::http::status_error::StatusError;
 use crate::http::users_api::{AuthContext, RequireAuth};
+use crate::http::utils::status_error::StatusError;
 use crate::http::utils::{file_to_response, AxumResult};
 use crate::http::AppState;
 use crate::model::photo::PhotoBody;
@@ -62,43 +62,38 @@ async fn base_upload_photo(
     query: UploadData,
     mut payload: Multipart,
 ) -> AxumResult<impl IntoResponse> {
-    let mut new_photo: Option<PhotoBody> = None;
+    let mut field = payload
+        .next_field()
+        .await?
+        .ok_or_else(|| StatusError::new_status("Multipart is empty", StatusCode::BAD_REQUEST))?;
 
-    while let Some(mut field) = payload.next_field().await? {
-        let file_name = field.file_name().unwrap_or_else(|| field.name().unwrap());
+    let file_name = field.file_name().unwrap_or_else(|| field.name().unwrap());
 
-        new_photo = Some(PhotoBody {
-            user_name: user_name.clone(),
-            name: file_name.to_string(),
-            created_at: query.time_created,
-            file_size: query.file_size as i64,
-            folder: query.folder_name.clone(),
-        });
+    let new_photo_body = PhotoBody {
+        user_name: user_name.clone(),
+        name: file_name.to_string(),
+        created_at: query.time_created,
+        file_size: query.file_size as i64,
+        folder: query.folder_name.clone(),
+    };
 
-        let folder = match query.folder_name.clone() {
-            None => String::new(),
-            Some(folder) => folder + "/",
-        };
+    let folder = match query.folder_name.clone() {
+        None => String::new(),
+        Some(folder) => folder + "/",
+    };
 
-        let filepath = storage.resolve(format!("{}/{}{}", user_name, folder, file_name));
-        info!("Uploading file to {}", filepath.to_string_lossy());
+    let filepath = storage.resolve(format!("{}/{}{}", user_name, folder, file_name));
+    info!("Uploading file to {}", filepath.to_string_lossy());
 
-        let mut file = fs::File::create(filepath)
-            .await
-            .map_err(|_| StatusError::create("Failed creating photo file"))?;
+    let mut file = fs::File::create(filepath)
+        .await
+        .map_err(|_| StatusError::create("Failed creating photo file"))?;
 
-        // Field in turn is stream of *Bytes* object
-        while let Some(chunk) = field.try_next().await? {
-            // filesystem operations are blocking, we have to use thread pool
-            file = file
-                .write_all(&chunk)
-                .await
-                .map(|_| file)
-                .map_err(internal_error)?;
-        }
+    while let Some(chunk) = field.try_next().await? {
+        file.write_all(&chunk).await.map_err(internal_error)?;
     }
 
-    let photo = photos_repo.insert_photo(&new_photo.unwrap()).await?;
+    let photo = photos_repo.insert_photo(&new_photo_body).await?;
 
     Ok(Json(photo))
 }
@@ -119,14 +114,21 @@ pub async fn thumbnail_photo(
     Path(photo_id): Path<i64>,
     auth: AuthContext,
 ) -> impl IntoResponse {
-    auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let AppState {
         storage,
         users_repo: _users_repo,
         photos_repo,
     } = state;
 
+    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = photos_repo.get_photo(photo_id).await?;
+
+    if user.id != photo.user_name || user.id != PUBLIC_USER_NAME {
+        return Err(StatusError::new_status(
+            "Not your photo",
+            StatusCode::FORBIDDEN,
+        ));
+    }
 
     let photo_path = storage.resolve(photo.partial_path().map_err(StatusError::create)?);
     let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
@@ -157,9 +159,15 @@ pub async fn download_photo(
     Path(photo_id): Path<i64>,
     auth: AuthContext,
 ) -> impl IntoResponse {
-    auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
-
+    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
+
+    if user.id != photo.user_name || user.id != PUBLIC_USER_NAME {
+        return Err(StatusError::new_status(
+            "Not your photo",
+            StatusCode::FORBIDDEN,
+        ));
+    }
 
     let photo_path = state
         .storage
@@ -173,9 +181,15 @@ pub async fn get_photo_exif(
     Path(photo_id): Path<i64>,
     auth: AuthContext,
 ) -> impl IntoResponse {
-    auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
-
+    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
+
+    if user.id != photo.user_name || user.id != PUBLIC_USER_NAME {
+        return Err(StatusError::new_status(
+            "Not your photo",
+            StatusCode::FORBIDDEN,
+        ));
+    }
 
     let path = state
         .storage
@@ -205,8 +219,18 @@ pub async fn upload_photo(
 pub async fn delete_photo(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
+    auth: AuthContext,
 ) -> impl IntoResponse {
+    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
+
+    if user.id != photo.user_name || user.id != PUBLIC_USER_NAME {
+        return Err(StatusError::new_status(
+            "Not your photo",
+            StatusCode::FORBIDDEN,
+        ));
+    }
+
     let path = photo.partial_path().map_err(StatusError::create)?;
 
     match state.storage.delete_file(path) {
@@ -231,10 +255,16 @@ pub async fn change_photo_location(
     Query(query): Query<ChangeLocationQuery>,
     auth: AuthContext,
 ) -> AxumResult<impl IntoResponse> {
-    auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
-
     let storage = state.storage;
+    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
+
+    if user.id != photo.user_name || user.id != PUBLIC_USER_NAME {
+        return Err(StatusError::new_status(
+            "Not your photo",
+            StatusCode::FORBIDDEN,
+        ));
+    }
 
     let target_user_name = query
         .target_user_name
@@ -274,12 +304,7 @@ pub async fn change_photo_location(
 
 // region Public
 
-pub async fn public_photos_list(
-    State(state): State<AppState>,
-    auth: AuthContext,
-) -> AxumResult<impl IntoResponse> {
-    auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
-
+pub async fn public_photos_list(State(state): State<AppState>) -> AxumResult<impl IntoResponse> {
     Ok(Json(
         state
             .photos_repo

@@ -3,6 +3,7 @@ use crate::repo::photos_repo::PhotosRepository;
 use crate::repo::users_repo::UsersRepository;
 use crate::utils::file_storage::FileStorage;
 use crate::utils::pg_session_store::PgSessionStore;
+use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::Router;
@@ -15,7 +16,6 @@ use tower_http::{cors, trace};
 use tracing::Level;
 
 mod photos_api;
-mod status_error;
 mod users_api;
 mod utils;
 
@@ -42,6 +42,7 @@ pub fn router(pool: PgPool, app_state: AppState) -> Router {
         .layer(CorsLayer::new().allow_origin(cors::Any))
         .layer(auth_layer)
         .layer(session_layer)
+        .layer(DefaultBodyLimit::max(512 * 1024 * 1024))
 }
 
 #[derive(Clone)]

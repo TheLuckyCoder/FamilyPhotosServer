@@ -1,10 +1,12 @@
-use crate::http::status_error::StatusError;
+use crate::http::utils::status_error::StatusError;
 use axum::body::StreamBody;
 use axum::http::header;
 use axum::response::IntoResponse;
 use tokio::fs;
 use tokio_util::io::ReaderStream;
 use tracing::debug;
+
+pub mod status_error;
 
 pub type AxumResult<T> = axum::response::Result<T>;
 
