@@ -1,8 +1,7 @@
 use std::net::SocketAddr;
 
 use axum_server::tls_rustls::RustlsConfig;
-use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
-use sqlx::ConnectOptions;
+use sqlx::postgres::PgPoolOptions;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 use tracing::{error, info};
@@ -47,11 +46,6 @@ async fn main() -> Result<(), String> {
         .connect(&vars.database_url)
         .await
         .expect("Error building the connection pool");
-
-    sqlx::migrate!()
-        .run(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
 
     let app_state = AppState {
         storage: FileStorage::new(vars.storage_path, vars.thumbnail_path),

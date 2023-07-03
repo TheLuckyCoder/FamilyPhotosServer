@@ -1,7 +1,7 @@
 use crate::model::photo::{Photo, PhotoBody};
 use crate::utils::internal_error;
 use axum::response::ErrorResponse;
-use sqlx::{query, query_as, PgPool};
+use sqlx::{query, query_as, PgPool, Postgres, QueryBuilder};
 
 #[derive(Clone)]
 pub struct PhotosRepository {
@@ -57,10 +57,24 @@ impl PhotosRepository {
     }
 
     pub async fn insert_photos(&self, photos: &[PhotoBody]) -> Result<(), ErrorResponse> {
-        for photo in photos {
-            self.insert_photo(photo).await?;
-        }
-        
+        let mut query_builder: QueryBuilder<Postgres> = QueryBuilder::new(
+            "insert into photos (user_name, name, created_at, file_size, folder) ",
+        );
+
+        query_builder.push_values(photos, |mut b, photo| {
+            b.push_bind(photo.user_name.clone())
+                .push_bind(photo.name.clone())
+                .push_bind(photo.created_at)
+                .push_bind(photo.file_size)
+                .push_bind(photo.folder.clone());
+        });
+
+        query_builder
+            .build()
+            .execute(&self.pool)
+            .await
+            .map_err(internal_error)?;
+
         Ok(())
     }
 

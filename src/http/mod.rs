@@ -6,7 +6,6 @@ use crate::utils::pg_session_store::PgSessionStore;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::Router;
-use axum_login::axum_sessions::async_session::MemoryStore;
 use axum_login::axum_sessions::SessionLayer;
 use axum_login::{AuthLayer, PostgresStore};
 use sqlx::PgPool;

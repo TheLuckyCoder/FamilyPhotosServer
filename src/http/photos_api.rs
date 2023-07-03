@@ -31,17 +31,16 @@ pub fn router(app_state: AppState) -> Router {
         .route("/delete/:photo_id", delete(delete_photo))
         .route("/change_location/:photo_id", post(change_photo_location))
         .with_state(app_state.clone());
-    // .route_layer(RequireAuth::login());
 
     let public_router = Router::new()
         .route("/", get(public_photos_list))
         .route("/upload", post(public_upload_photo))
         .with_state(app_state);
-    // .route_layer(RequireAuth::login());
 
     Router::new()
         .nest("/photos", user_router)
         .nest("/public_photos", public_router)
+        .route_layer(RequireAuth::login())
 }
 
 #[derive(Debug, serde::Deserialize)]
