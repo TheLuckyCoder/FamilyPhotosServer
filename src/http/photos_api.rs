@@ -2,9 +2,11 @@ use crate::http::users_api::{AuthContext, RequireAuth};
 use crate::http::utils::status_error::StatusError;
 use crate::http::utils::{file_to_response, AxumResult};
 use crate::http::AppState;
-use crate::model::photo::PhotoBody;
+use crate::model::photo::{Photo, PhotoBody};
+use crate::model::user::User;
 use crate::thumbnail::generate_thumbnail;
 use crate::utils::{internal_error, primitive_date_time_serde, read_exif};
+use axum::response::ErrorResponse;
 use axum::{
     extract::Multipart,
     extract::{Path, Query, State},
@@ -50,6 +52,17 @@ pub struct UploadData {
     time_created: time::PrimitiveDateTime,
     file_size: usize,
     folder_name: Option<String>,
+}
+
+fn check_has_access(user: &User, photo: &Photo) -> Result<(), ErrorResponse> {
+    if photo.user_name == user.id || photo.user_name == PUBLIC_USER_NAME {
+        Ok(())
+    } else {
+        Err(StatusError::new_status(
+            "Not your photo",
+            StatusCode::FORBIDDEN,
+        ))
+    }
 }
 
 async fn base_upload_photo(
@@ -123,12 +136,7 @@ pub async fn thumbnail_photo(
     let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = photos_repo.get_photo(photo_id).await?;
 
-    if user.id != photo.user_name || user.id != PUBLIC_USER_NAME {
-        return Err(StatusError::new_status(
-            "Not your photo",
-            StatusCode::FORBIDDEN,
-        ));
-    }
+    check_has_access(&user, &photo)?;
 
     let photo_path = storage.resolve(photo.partial_path().map_err(StatusError::create)?);
     let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
@@ -162,12 +170,7 @@ pub async fn download_photo(
     let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
 
-    if user.id != photo.user_name || user.id != PUBLIC_USER_NAME {
-        return Err(StatusError::new_status(
-            "Not your photo",
-            StatusCode::FORBIDDEN,
-        ));
-    }
+    check_has_access(&user, &photo)?;
 
     let photo_path = state
         .storage
@@ -184,12 +187,7 @@ pub async fn get_photo_exif(
     let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
 
-    if user.id != photo.user_name || user.id != PUBLIC_USER_NAME {
-        return Err(StatusError::new_status(
-            "Not your photo",
-            StatusCode::FORBIDDEN,
-        ));
-    }
+    check_has_access(&user, &photo)?;
 
     let path = state
         .storage
@@ -224,12 +222,7 @@ pub async fn delete_photo(
     let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
 
-    if user.id != photo.user_name || user.id != PUBLIC_USER_NAME {
-        return Err(StatusError::new_status(
-            "Not your photo",
-            StatusCode::FORBIDDEN,
-        ));
-    }
+    check_has_access(&user, &photo)?;
 
     let path = photo.partial_path().map_err(StatusError::create)?;
 
@@ -259,12 +252,7 @@ pub async fn change_photo_location(
     let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
 
-    if user.id != photo.user_name || user.id != PUBLIC_USER_NAME {
-        return Err(StatusError::new_status(
-            "Not your photo",
-            StatusCode::FORBIDDEN,
-        ));
-    }
+    check_has_access(&user, &photo)?;
 
     let target_user_name = query
         .target_user_name
