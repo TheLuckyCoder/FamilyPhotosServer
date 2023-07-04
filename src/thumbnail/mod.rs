@@ -41,7 +41,7 @@ pub async fn generate_all_background(app_state: AppState) -> Result<(), String> 
 }
 
 fn create_thumbnail(storage: &FileStorage, photo: &Photo) {
-    let photo_path = storage.resolve(photo.partial_path());
+    let photo_path = storage.resolve_photo(photo.partial_path());
     let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
 
     if photo_path.exists() && !thumbnail_path.exists() {

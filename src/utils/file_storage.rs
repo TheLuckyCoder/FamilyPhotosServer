@@ -41,16 +41,12 @@ impl FileStorage {
         }
     }
 
-    pub fn resolve<P: AsRef<Path>>(&self, relative: P) -> PathBuf {
-        let mut new_path = self.storage_folder.clone();
-        new_path.push(relative);
-        new_path
+    pub fn resolve_photo<P: AsRef<Path>>(&self, relative: P) -> PathBuf {
+        self.storage_folder.join(relative.as_ref())
     }
 
     pub fn resolve_thumbnail<P: AsRef<Path>>(&self, relative: P) -> PathBuf {
-        let mut new_path = self.thumbnail_folder.clone();
-        new_path.push(relative);
-        new_path
+        self.thumbnail_folder.join(relative.as_ref())
     }
 
     pub fn move_file<P1: AsRef<Path>, P2: AsRef<Path>>(
@@ -58,10 +54,19 @@ impl FileStorage {
         src_relative: P1,
         dest_relative: P2,
     ) -> std::io::Result<()> {
-        fs::rename(self.resolve(src_relative), self.resolve(dest_relative))
+        let destination_path = self.resolve_photo(dest_relative);
+
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = destination_path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)?;
+            }
+        }
+
+        fs::rename(self.resolve_photo(src_relative), destination_path)
     }
 
     pub fn delete_file<P: AsRef<Path>>(&self, relative: P) -> std::io::Result<()> {
-        fs::remove_file(self.resolve(relative))
+        fs::remove_file(self.resolve_photo(relative))
     }
 }

@@ -55,7 +55,7 @@ impl DataScan {
     fn scan_user_photos(storage: &FileStorage, user: User) -> (User, Vec<PhotoBody>) {
         let mut photos = Vec::with_capacity(8192 * 4);
 
-        let user_path = storage.resolve(&user.id);
+        let user_path = storage.resolve_photo(&user.id);
         if !user_path.exists() {
             fs::create_dir(user_path).unwrap()
         } else {
@@ -143,7 +143,7 @@ impl DataScan {
                 .filter(|photo| {
                     photo.user_id() == &user.id
                         && !storage
-                            .resolve(format!("{}/{}", user.id, photo.full_name()))
+                            .resolve_photo(format!("{}/{}", user.id, photo.full_name()))
                             .exists()
                 })
                 .map(|photo| photo.id())

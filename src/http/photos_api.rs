@@ -89,15 +89,16 @@ async fn base_upload_photo(
         query.folder_name.clone(),
     );
 
-    let folder = match query.folder_name.clone() {
-        None => String::new(),
-        Some(folder) => folder + "/",
-    };
+    let photo_path = storage.resolve_photo(new_photo_body.partial_path());
+    if let Some(parent) = photo_path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).await.map_err(internal_error)?;
+        }
+    }
 
-    let filepath = storage.resolve(format!("{}/{}{}", user_name, folder, file_name));
-    info!("Uploading file to {}", filepath.to_string_lossy());
+    info!("Uploading file to {}", photo_path.to_string_lossy());
 
-    let mut file = fs::File::create(filepath)
+    let mut file = fs::File::create(photo_path)
         .await
         .map_err(|_| StatusError::create("Failed creating photo file"))?;
 
@@ -137,7 +138,7 @@ pub async fn thumbnail_photo(
 
     check_has_access(&user, &photo)?;
 
-    let photo_path = storage.resolve(photo.partial_path());
+    let photo_path = storage.resolve_photo(photo.partial_path());
     let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
     let photo_path_clone = photo_path.clone();
     let thumbnail_path_clone = thumbnail_path.clone();
@@ -171,7 +172,7 @@ pub async fn download_photo(
 
     check_has_access(&user, &photo)?;
 
-    let photo_path = state.storage.resolve(photo.partial_path());
+    let photo_path = state.storage.resolve_photo(photo.partial_path());
 
     file_to_response(&photo_path).await
 }
@@ -186,7 +187,7 @@ pub async fn get_photo_exif(
 
     check_has_access(&user, &photo)?;
 
-    let path = state.storage.resolve(photo.partial_path());
+    let path = state.storage.resolve_photo(photo.partial_path());
     let exif = task::spawn_blocking(move || read_exif(path)).await.unwrap();
 
     match exif {
@@ -263,10 +264,7 @@ pub async fn change_photo_location(
     let source_path = photo.partial_path();
     let destination_path = changed_photo.partial_path();
 
-    // Create parent directory if it doesn't exist
-    if let Some(parent) = std::path::Path::new(destination_path.as_str()).parent() {
-        fs::create_dir_all(parent).await.map_err(internal_error)?;
-    }
+    info!("Moving photo from {source_path} to {destination_path}");
 
     storage
         .move_file(&source_path, &destination_path)

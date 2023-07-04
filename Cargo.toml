@@ -21,7 +21,7 @@ axum = { version = "0.6", features = ["multipart"] }
 tower = "0.4"
 tower-http = { version = "0.4", features = ["trace", "cors"] }
 axum-server = { version = "0.5", features = ["tls-rustls"] }
-axum-login = { version = "0.5", features = ["sqlx", "postgres"] }
+axum-login = { version = "0.5", features = ["postgres"] }
 
 # Logging
 tracing = "0.1"
