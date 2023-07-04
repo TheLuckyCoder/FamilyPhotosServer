@@ -61,13 +61,13 @@ async fn main() -> Result<(), String> {
         photos_repo: PhotosRepository::new(pool.clone()),
     };
 
+    // Create default public user
+    create_public_user(&app_state.users_repo).await?;
+
     // Run the CLI
     if cli::run_cli(&pool, &app_state).await {
         return Ok(());
     }
-
-    // Create default public user
-    create_public_user(&app_state.users_repo).await?;
 
     // Scan the storage directory for new photos in the background
     if vars.scan_new_files {
@@ -76,7 +76,7 @@ async fn main() -> Result<(), String> {
 
     // Generate thumbnails in background
     if vars.generate_thumbnails_background {
-        match thumbnail::generate_background(app_state.clone()).await {
+        match thumbnail::generate_all_background(app_state.clone()).await {
             Ok(_) => info!("Background thumbnail generation finished"),
             Err(e) => error!("Could not start background thumbnail generation: {e}"),
         }

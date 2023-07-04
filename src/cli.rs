@@ -1,3 +1,4 @@
+use crate::{file_scan, thumbnail};
 use clap::{Parser, Subcommand};
 use sqlx::PgPool;
 
@@ -30,8 +31,8 @@ enum UsersCommand {
     /// Create a new user
     Create {
         #[arg(short, long)]
-        /// The name used for login and in the filesystem
-        user_name: String,
+        /// The name used for login and the filesystem folder name
+        user_id: String,
         #[arg(short, long)]
         /// The name visible to the user
         name: String,
@@ -39,7 +40,7 @@ enum UsersCommand {
         /// Random password will be generated if not provided
         password: Option<String>,
     },
-    /// List all users
+    /// List all users and their respective photo count
     List,
     /// Remove an existing user
     Remove {
@@ -50,8 +51,10 @@ enum UsersCommand {
 
 #[derive(Subcommand)]
 enum PhotosCommand {
-    /// Show photos count
-    Count,
+    /// Trigger a manual scan of the filesystem
+    ScanPhotos,
+    /// Trigger a manual generation of thumbnails
+    GenerateThumbnails,
 }
 
 #[derive(Subcommand)]
@@ -83,49 +86,33 @@ pub async fn run_cli(pool: &PgPool, state: &AppState) -> bool {
 async fn user_commands(state: &AppState, command: UsersCommand) {
     match command {
         UsersCommand::Create {
-            user_name,
+            user_id,
             name,
             password,
         } => {
             let final_password = &password.unwrap_or_else(generate_random_password);
-            let user_result = state
-                .users_repo
-                .insert_user(User {
-                    id: user_name,
-                    name,
-                    password_hash: generate_hash_from_password(final_password),
-                })
-                .await;
+            let user = User {
+                id: user_id,
+                name,
+                password_hash: generate_hash_from_password(final_password),
+            };
+
+            let user_result = state.users_repo.insert_user(&user).await;
 
             match user_result {
-                Ok(user) => println!(
-                    "User created with {{user name=\"{}\", name=\"{}\", password=\"{}\"}}",
+                Ok(_) => println!(
+                    "User created with user name=\"{}\", name=\"{}\", password=\"{}\"",
                     user.id, user.name, final_password
                 ),
                 _ => eprintln!("Error creating user"),
             }
         }
-        UsersCommand::List => match state.users_repo.get_users().await {
-            Ok(users) => {
-                println!("Users:");
-                for user in users {
-                    println!("\t{{user name=\"{}\", name=\"{}\"}}", user.id, user.name);
-                }
-            }
-            _ => eprintln!("Error listing users"),
-        },
-        UsersCommand::Remove { user_name } => {
-            match state.users_repo.delete_user(&user_name).await {
-                Ok(_) => println!("Deleted user with user name: {user_name}"),
-                _ => eprintln!("Failed to remove user with user name: {user_name}"),
-            }
-        }
-    }
-}
+        UsersCommand::List => {
+            println!(
+                "| {0: <10} | {1: <10} | {2: <10} |",
+                "User Id", "Name", "Photos Count"
+            );
 
-async fn photos_commands(state: &AppState, command: PhotosCommand) {
-    match command {
-        PhotosCommand::Count => {
             let users = state
                 .users_repo
                 .get_users()
@@ -137,10 +124,35 @@ async fn photos_commands(state: &AppState, command: PhotosCommand) {
                     .photos_repo
                     .get_photos_by_user(user.id.as_str())
                     .await
-                    .unwrap()
+                    .expect("Failed to get photos count")
                     .len();
 
-                println!("Username={}\tPhotos Count={}", user.id, count);
+                println!(
+                    "| {0: <10} | {1: <10} | {2: <10} |",
+                    user.id, user.name, count
+                );
+            }
+        }
+        UsersCommand::Remove { user_name } => {
+            match state.users_repo.delete_user(&user_name).await {
+                Ok(_) => println!("Deleted user with user name: {user_name}"),
+                _ => eprintln!("Failed to remove user with user name: {user_name}"),
+            }
+        }
+    }
+}
+
+async fn photos_commands(state: &AppState, command: PhotosCommand) {
+    match command {
+        PhotosCommand::ScanPhotos => {
+            file_scan::scan_new_files(state.clone())
+                .await
+                .expect("Failed to join task");
+        }
+        PhotosCommand::GenerateThumbnails => {
+            match thumbnail::generate_all_foreground(state).await {
+                Ok(_) => println!("Thumbnail generation finished"),
+                Err(e) => eprintln!("Thumbnail generation failed: {e}"),
             }
         }
     }

@@ -6,6 +6,7 @@ use std::time::Instant;
 use rayon::prelude::*;
 use time::PrimitiveDateTime;
 use tokio::task;
+use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 use walkdir::{DirEntry, WalkDir};
 
@@ -18,7 +19,7 @@ pub struct DataScan {
 }
 
 impl DataScan {
-    pub fn run(app_state: AppState) {
+    pub fn run(app_state: AppState) -> JoinHandle<()> {
         task::spawn(async move {
             let users: Vec<User> = app_state
                 .users_repo
@@ -34,7 +35,7 @@ impl DataScan {
                 "Photos scanning completed in {} seconds",
                 instant.elapsed().as_secs()
             );
-        });
+        })
     }
 
     fn scan(users: Vec<User>, storage: &FileStorage) -> Self {
