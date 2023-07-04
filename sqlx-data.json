@@ -118,6 +118,18 @@
     },
     "query": "select * from users where id = $1"
   },
+  "8b69e27423243cfaca3d56c5462f7b52547d71228cd996e37e0a00f04042306f": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8Array"
+        ]
+      }
+    },
+    "query": "delete from photos where id = (select * from UNNEST($1::int8[]))"
+  },
   "8df5b71720ba9672e53e072f54de4422bc53cc19b8eb52dc03421af8057eaa63": {
     "describe": {
       "columns": [

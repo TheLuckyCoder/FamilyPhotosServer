@@ -1,7 +1,7 @@
 pub use generate::*;
 
 use crate::http::AppState;
-use crate::model::photo::Photo;
+use crate::model::photo::{Photo, PhotoBase};
 
 mod generate;
 

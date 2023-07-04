@@ -1,8 +1,3 @@
-use crate::http::utils::status_error::StatusError;
-use crate::http::utils::AxumResult;
-use crate::model::user::{SimpleUser, User};
-use crate::repo::users_repo::UsersRepository;
-use crate::utils::password_hash::validate_credentials;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -10,7 +5,13 @@ use axum::routing::post;
 use axum::{Json, Router};
 use axum_login::{PostgresStore, RequireAuthorizationLayer};
 use serde::Deserialize;
-use tracing::{error, warn};
+use tracing::error;
+
+use crate::http::utils::status_error::StatusError;
+use crate::http::utils::AxumResult;
+use crate::model::user::{SimpleUser, User};
+use crate::repo::users_repo::UsersRepository;
+use crate::utils::password_hash::validate_credentials;
 
 pub type AuthContext = axum_login::extractors::AuthContext<String, User, PostgresStore<User>>;
 pub type RequireAuth = RequireAuthorizationLayer<String, User>;
@@ -38,7 +39,7 @@ async fn login(
 
     let valid_credentials = validate_credentials(&login_user.password, &user.password_hash)
         .map_err(|e| {
-            warn!("Failed to validate credentials: {e}");
+            error!("Failed to validate credentials: {e}");
             StatusError::create("Failed to validate credentials")
         })?;
 

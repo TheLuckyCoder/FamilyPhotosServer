@@ -1,15 +1,14 @@
 use argon2::password_hash::SaltString;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use rand::{Rng, SeedableRng};
-use rand_hc::Hc128Rng;
+use rand::Rng;
 
 pub fn generate_random_password() -> String {
-    let mut rng = Hc128Rng::from_entropy();
+    let mut rng = rand::thread_rng();
     let mut password = String::new();
-    password.reserve(14);
+    password.reserve(15);
 
-    for _ in 0..14 {
-        let random_char: u8 = rng.gen_range(33..=126);
+    for _ in 0..15 {
+        let random_char: u8 = rng.gen_range(35..=122);
         password.push(random_char as char);
     }
 
@@ -25,14 +24,14 @@ pub fn generate_hash_from_password<T: AsRef<str>>(password: T) -> String {
         .to_string();
 }
 
-pub fn validate_credentials(
-    password: &String,
-    expected_password_hash: &String,
+pub fn validate_credentials<T: AsRef<str>, E: AsRef<str>>(
+    password: T,
+    expected_password_hash: E,
 ) -> Result<bool, String> {
     let expected_password_hash =
-        PasswordHash::new(expected_password_hash).map_err(|e| e.to_string())?;
+        PasswordHash::new(expected_password_hash.as_ref()).map_err(|e| e.to_string())?;
 
     return Ok(Argon2::default()
-        .verify_password(password.as_bytes(), &expected_password_hash)
+        .verify_password(password.as_ref().as_bytes(), &expected_password_hash)
         .is_ok());
 }

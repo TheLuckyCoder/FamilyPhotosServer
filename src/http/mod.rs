@@ -1,13 +1,13 @@
 use crate::model::user::User;
+use crate::repo::pg_session_store::PgSessionRepository;
 use crate::repo::photos_repo::PhotosRepository;
 use crate::repo::users_repo::UsersRepository;
 use crate::utils::file_storage::FileStorage;
-use crate::utils::pg_session_store::PgSessionStore;
 use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::Router;
-use axum_login::axum_sessions::SessionLayer;
+use axum_login::axum_sessions::{PersistencePolicy, SessionLayer};
 use axum_login::{AuthLayer, PostgresStore};
 use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
@@ -19,15 +19,13 @@ mod photos_api;
 mod users_api;
 mod utils;
 
-pub fn router(pool: PgPool, app_state: AppState) -> Router {
-    let secret =
-        "YX#Wj/+}(%N6N`tTwnt%bypLvg}lMB<50(ip+xT_*po%B4^*}7-%GLw-p/PT[8jWyLxi%H#qH`a]4YAPG_6s"
-            .as_bytes();
-    let session_store = PgSessionStore::new(pool.clone());
-    let session_layer = SessionLayer::new(session_store, secret);
+pub fn router(pool: PgPool, app_state: AppState, session_secret: &[u8]) -> Router {
+    let session_store = PgSessionRepository::new(pool.clone());
+    let session_layer = SessionLayer::new(session_store, session_secret)
+        .with_persistence_policy(PersistencePolicy::ChangedOnly);
 
     let user_store = PostgresStore::<User>::new(pool);
-    let auth_layer = AuthLayer::new(user_store, secret);
+    let auth_layer = AuthLayer::new(user_store, session_secret);
 
     Router::new()
         .route("/", get(|| async { StatusCode::OK }))

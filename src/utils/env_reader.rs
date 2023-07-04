@@ -13,6 +13,7 @@ pub struct EnvVariables {
     pub server_port: u16,
     pub database_url: String,
     pub storage_path: String,
+    pub session_secret: String,
     pub thumbnail_path: Option<String>,
     pub scan_new_files: bool,
     pub generate_thumbnails_background: bool,
@@ -37,6 +38,7 @@ impl EnvVariables {
                 .expect("SERVER_PORT must be a valid port number!"),
             database_url: required_env_var("DATABASE_URL"),
             storage_path: required_env_var("STORAGE_PATH"),
+            session_secret: required_env_var("SESSION_SECRET"),
             thumbnail_path: std::env::var("THUMBNAIL_PATH").ok(),
             scan_new_files: optional_env_var("SCAN_NEW_FILES", true),
             generate_thumbnails_background: optional_env_var(

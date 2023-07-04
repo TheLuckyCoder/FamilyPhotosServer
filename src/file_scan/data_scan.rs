@@ -10,7 +10,7 @@ use tracing::{debug, info, warn};
 use walkdir::{DirEntry, WalkDir};
 
 use crate::file_scan::timestamp;
-use crate::model::photo::{Photo, PhotoBody};
+use crate::model::photo::{Photo, PhotoBase, PhotoBody};
 use crate::{AppState, FileStorage, User};
 
 pub struct DataScan {
@@ -84,17 +84,17 @@ impl DataScan {
         let timestamp = timestamp::get_timestamp_for_path(path);
 
         match timestamp {
-            Some(date_time) => Some(PhotoBody {
-                user_name: user_name.clone(),
-                name: entry.file_name().to_string_lossy().to_string(),
-                created_at: PrimitiveDateTime::new(date_time.date(), date_time.time()),
-                file_size: fs::metadata(path).map_or(0i64, |data| data.len() as i64),
-                folder: if entry.depth() == 2 {
+            Some(date_time) => Some(PhotoBody::new(
+                user_name.clone(),
+                entry.file_name().to_string_lossy().to_string(),
+                PrimitiveDateTime::new(date_time.date(), date_time.time()),
+                fs::metadata(path).map_or(0i64, |data| data.len() as i64),
+                if entry.depth() == 2 {
                     Some(path.parent()?.file_name()?.to_string_lossy().to_string())
                 } else {
                     None
                 },
-            }),
+            )),
             None => {
                 warn!("No timestamp: {}", path.display());
                 None
@@ -140,12 +140,12 @@ impl DataScan {
             let removed_photos = existing_photos
                 .iter()
                 .filter(|photo| {
-                    photo.user_name == user.id
+                    photo.user_id() == &user.id
                         && !storage
                             .resolve(format!("{}/{}", user.id, photo.full_name()))
                             .exists()
                 })
-                .map(|photo| photo.id)
+                .map(|photo| photo.id())
                 .collect::<Vec<i64>>();
 
             if !removed_photos.is_empty() {
@@ -155,14 +155,11 @@ impl DataScan {
                     user.id
                 );
 
-                // TODO: Improve performance
-                for removed_photo_id in removed_photos {
-                    app_state
-                        .photos_repo
-                        .delete_photo(removed_photo_id)
-                        .await
-                        .expect("Failed to delete photo");
-                }
+                app_state
+                    .photos_repo
+                    .delete_photos(&removed_photos)
+                    .await
+                    .expect("Failed to delete photo");
             }
         }
     }

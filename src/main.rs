@@ -72,7 +72,8 @@ async fn main() -> Result<(), String> {
 
     info!("Server listening on port {}", vars.server_port);
 
-    let http_service = http::router(pool, app_state).into_make_service();
+    let http_service =
+        http::router(pool, app_state, vars.session_secret.as_bytes()).into_make_service();
     let addr = SocketAddr::from(([127, 0, 0, 1], vars.server_port));
 
     if vars.use_https {

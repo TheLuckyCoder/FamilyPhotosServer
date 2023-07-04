@@ -2,7 +2,7 @@ use crate::http::users_api::{AuthContext, RequireAuth};
 use crate::http::utils::status_error::StatusError;
 use crate::http::utils::{file_to_response, AxumResult};
 use crate::http::AppState;
-use crate::model::photo::{Photo, PhotoBody};
+use crate::model::photo::{Photo, PhotoBase, PhotoBody};
 use crate::model::user::User;
 use crate::thumbnail::generate_thumbnail;
 use crate::utils::{internal_error, primitive_date_time_serde, read_exif};
@@ -32,17 +32,18 @@ pub fn router(app_state: AppState) -> Router {
         .route("/upload", post(upload_photo))
         .route("/delete/:photo_id", delete(delete_photo))
         .route("/change_location/:photo_id", post(change_photo_location))
-        .with_state(app_state.clone());
+        .with_state(app_state.clone())
+        .route_layer(RequireAuth::login());
 
     let public_router = Router::new()
         .route("/", get(public_photos_list))
         .route("/upload", post(public_upload_photo))
-        .with_state(app_state);
+        .with_state(app_state)
+        .route_layer(RequireAuth::login());
 
     Router::new()
         .nest("/photos", user_router)
         .nest("/public_photos", public_router)
-        .route_layer(RequireAuth::login())
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -55,11 +56,11 @@ pub struct UploadData {
 }
 
 fn check_has_access(user: &User, photo: &Photo) -> Result<(), ErrorResponse> {
-    if photo.user_name == user.id || photo.user_name == PUBLIC_USER_NAME {
+    if photo.user_id() == &user.id || photo.user_id() == PUBLIC_USER_NAME {
         Ok(())
     } else {
         Err(StatusError::new_status(
-            "Not your photo",
+            "YOu don't have access to this resource",
             StatusCode::FORBIDDEN,
         ))
     }
@@ -82,13 +83,13 @@ async fn base_upload_photo(
 
     let file_name = field.file_name().unwrap_or_else(|| field.name().unwrap());
 
-    let new_photo_body = PhotoBody {
-        user_name: user_name.clone(),
-        name: file_name.to_string(),
-        created_at: query.time_created,
-        file_size: query.file_size as i64,
-        folder: query.folder_name.clone(),
-    };
+    let new_photo_body = PhotoBody::new(
+        user_name.clone(),
+        file_name.to_string(),
+        query.time_created,
+        query.file_size as i64,
+        query.folder_name.clone(),
+    );
 
     let folder = match query.folder_name.clone() {
         None => String::new(),
@@ -226,6 +227,9 @@ pub async fn delete_photo(
 
     let path = photo.partial_path().map_err(StatusError::create)?;
 
+    let thumbnail_path = photo.partial_thumbnail_path();
+    let _ = state.storage.delete_file(thumbnail_path);
+
     match state.storage.delete_file(path) {
         Ok(_) => match state.photos_repo.delete_photo(photo_id).await {
             Ok(_count) => Ok("{\"deleted\": true}".to_string()),
@@ -258,11 +262,13 @@ pub async fn change_photo_location(
         .target_user_name
         .unwrap_or(PUBLIC_USER_NAME.to_string());
 
-    let changed_photo = {
-        let mut new = photo.clone();
-        new.user_name = target_user_name;
-        new.folder = query.target_folder_name.clone();
-        new
+    let changed_photo = Photo {
+        id: photo.id(),
+        user_name: target_user_name,
+        name: photo.name().clone(),
+        created_at: photo.created_at().clone(),
+        file_size: photo.file_size(),
+        folder: query.target_folder_name.clone(),
     };
 
     let source_path = photo.partial_path().map_err(StatusError::create)?;

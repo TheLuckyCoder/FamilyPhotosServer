@@ -1,4 +1,4 @@
-use crate::model::photo::{Photo, PhotoBody};
+use crate::model::photo::{Photo, PhotoBase, PhotoBody};
 use crate::utils::internal_error;
 use axum::response::ErrorResponse;
 use sqlx::{query, query_as, PgPool, Postgres, QueryBuilder};
@@ -45,11 +45,11 @@ impl PhotosRepository {
         query_as!(
             Photo,
             "insert into photos (user_name, name, created_at, file_size, folder) values ($1, $2, $3, $4, $5) returning *",
-            photo.user_name,
-            photo.name,
-            photo.created_at,
-            photo.file_size,
-            photo.folder
+            photo.user_id(),
+            photo.name(),
+            photo.created_at(),
+            photo.file_size(),
+            photo.folder_name()
         )
         .fetch_one(&self.pool)
         .await
@@ -62,11 +62,11 @@ impl PhotosRepository {
         );
 
         query_builder.push_values(photos, |mut b, photo| {
-            b.push_bind(photo.user_name.clone())
-                .push_bind(photo.name.clone())
-                .push_bind(photo.created_at)
-                .push_bind(photo.file_size)
-                .push_bind(photo.folder.clone());
+            b.push_bind(photo.user_id())
+                .push_bind(photo.name())
+                .push_bind(photo.created_at())
+                .push_bind(photo.file_size())
+                .push_bind(photo.folder_name());
         });
 
         query_builder
@@ -81,12 +81,12 @@ impl PhotosRepository {
     pub async fn update_photo(&self, photo: &Photo) -> Result<(), ErrorResponse> {
         query!(
             "update photos set user_name = $2, name = $3, created_at = $4, file_size = $5, folder = $6 where id = $1",
-            photo.id,
-            photo.user_name,
-            photo.name,
-            photo.created_at,
-            photo.file_size,
-            photo.folder
+            photo.id(),
+            photo.user_id(),
+            photo.name(),
+            photo.created_at(),
+            photo.file_size(),
+            photo.folder_name()
         )
             .execute(&self.pool)
             .await
@@ -100,5 +100,16 @@ impl PhotosRepository {
             .await
             .map(|_| ())
             .map_err(internal_error)
+    }
+
+    pub async fn delete_photos(&self, photo_ids: &[i64]) -> Result<(), ErrorResponse> {
+        query!(
+            "delete from photos where id = (select * from UNNEST($1::int8[]))",
+            photo_ids
+        )
+        .execute(&self.pool)
+        .await
+        .map(|_| ())
+        .map_err(internal_error)
     }
 }

@@ -4,7 +4,7 @@ use sqlx::{query, query_as, PgPool};
 use tracing::trace;
 
 #[derive(Debug, Clone)]
-pub struct PgSessionStore {
+pub struct PgSessionRepository {
     pool: PgPool,
 }
 
@@ -14,7 +14,7 @@ struct DatabaseSession {
 }
 
 #[async_trait]
-impl SessionStore for PgSessionStore {
+impl SessionStore for PgSessionRepository {
     async fn load_session(&self, cookie_value: String) -> Result<Option<Session>> {
         let id = Session::id_from_cookie_value(&cookie_value)?;
         trace!("loading session by id `{}`", id);
@@ -76,7 +76,7 @@ impl SessionStore for PgSessionStore {
     }
 }
 
-impl PgSessionStore {
+impl PgSessionRepository {
     /// Create a new instance of MemoryStore
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
