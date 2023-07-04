@@ -9,7 +9,7 @@ use exif::{In, Tag};
 use image::imageops::FilterType;
 use image::DynamicImage;
 use mime_guess::MimeGuess;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use wait_timeout::ChildExt;
 
 const THUMBNAIL_TARGET_SIZE: u32 = 500;
@@ -32,16 +32,17 @@ fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> std::io::Resul
     }
 }
 
-fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path: R) -> Option<()> {
-    info!(
-        "Generating thumbnail for video {}",
-        load_path.as_ref().display()
-    );
+fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(
+    load_path: P,
+    save_path: R,
+) -> Result<(), String> {
     let intermediate_path = save_path
         .as_ref()
-        .to_str()?
+        .to_str()
+        .ok_or_else(|| "Failed to get string from path".to_string())?
         .rsplit_once('.')
-        .map(|(before, _after)| before.to_string() + ".jpg")?;
+        .map(|(before, _after)| before.to_string() + ".jpg")
+        .ok_or_else(|| "Failed split path".to_string())?;
 
     let mut command = Command::new("ffmpegthumbnailer");
     command
@@ -52,22 +53,23 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path:
         .arg("-s")
         .arg(THUMBNAIL_TARGET_SIZE.to_string());
 
-    let mut child = command.spawn().ok()?;
+    let mut child = command.spawn().map_err(|e| e.to_string())?;
 
     match child.wait_timeout(Duration::from_secs(15)) {
-        Ok(status) => status.map(|_| ())?,
+        Ok(status) => status
+            .map(|_| ())
+            .ok_or_else(|| "Failed to get exit status".to_string())?,
         Err(_) => {
-            child.kill().ok()?;
-            child.wait().ok()?;
-            return None;
+            child.kill().map_err(|e| e.to_string())?;
+            return child.wait().map(|_| ()).map_err(|e| e.to_string());
         }
     }
 
     if let Ok(img) = image::open(&intermediate_path) {
-        fs::remove_file(intermediate_path).ok()?;
-        img.save(save_path).ok()
+        fs::remove_file(intermediate_path).map_err(|e| e.to_string())?;
+        img.save(save_path).map_err(|e| e.to_string())
     } else {
-        None
+        Err("Failed to open the file".to_string())
     }
 }
 
@@ -80,7 +82,21 @@ where
 
     let mime = MimeGuess::from_ext(ext.to_str().unwrap()).first_or_octet_stream();
     if mime.type_() == "video" {
-        return generate_video_frame(&load_path, &save_path).is_some();
+        let result = generate_video_frame(&load_path, &save_path);
+
+        match &result {
+            Ok(_) => info!(
+                "Generated thumbnail for video: {}",
+                load_path.as_ref().display()
+            ),
+            Err(error_message) => warn!(
+                "Thumbnail generation failed for video: {}\nCause: {}",
+                load_path.as_ref().display(),
+                error_message
+            ),
+        }
+
+        return result.is_ok();
     }
 
     if ext == "heic" || ext == "heif" {

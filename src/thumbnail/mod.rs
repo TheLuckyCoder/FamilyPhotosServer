@@ -17,7 +17,7 @@ pub async fn generate_background(app_state: AppState) -> Result<(), String> {
     // We only use one thread for this as we don't want to take up the whole CPU
     rayon::spawn(move || {
         for photo in photos {
-            let photo_path = storage.resolve(photo.partial_path().unwrap());
+            let photo_path = storage.resolve(photo.partial_path());
             let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
 
             if photo_path.exists() && !thumbnail_path.exists() {

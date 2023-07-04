@@ -11,15 +11,15 @@ impl UsersRepository {
         Self { pool }
     }
 
-    pub async fn get_user<T: AsRef<str>>(&self, user_name: T) -> User {
+    pub async fn get_user<T: AsRef<str>>(&self, user_name: T) -> Option<User> {
         query_as!(
             User,
             "select * from users where id = $1",
             user_name.as_ref()
         )
-        .fetch_one(&self.pool)
+        .fetch_optional(&self.pool)
         .await
-        .unwrap()
+        .ok()?
     }
 
     pub async fn get_users(&self) -> Result<Vec<User>, Error> {

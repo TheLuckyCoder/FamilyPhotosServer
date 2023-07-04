@@ -1,6 +1,6 @@
 use crate::model::user::User;
-use crate::repo::pg_session_store::PgSessionRepository;
 use crate::repo::photos_repo::PhotosRepository;
+use crate::repo::session_repo::SessionRepository;
 use crate::repo::users_repo::UsersRepository;
 use crate::utils::file_storage::FileStorage;
 use axum::extract::DefaultBodyLimit;
@@ -20,7 +20,7 @@ mod users_api;
 mod utils;
 
 pub fn router(pool: PgPool, app_state: AppState, session_secret: &[u8]) -> Router {
-    let session_store = PgSessionRepository::new(pool.clone());
+    let session_store = SessionRepository::new(pool.clone());
     let session_layer = SessionLayer::new(session_store, session_secret)
         .with_persistence_policy(PersistencePolicy::ChangedOnly);
 
@@ -34,13 +34,13 @@ pub fn router(pool: PgPool, app_state: AppState, session_secret: &[u8]) -> Route
         .merge(photos_api::router(app_state))
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(trace::DefaultMakeSpan::new().level(Level::DEBUG))
+                .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
                 .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
         )
         .layer(CorsLayer::new().allow_origin(cors::Any))
         .layer(auth_layer)
         .layer(session_layer)
-        .layer(DefaultBodyLimit::max(512 * 1024 * 1024))
+        .layer(DefaultBodyLimit::max(1024 * 1024 * 1024))
 }
 
 #[derive(Clone)]

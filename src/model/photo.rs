@@ -23,8 +23,8 @@ pub trait PhotoBase {
         folder_path + self.name().as_str()
     }
 
-    fn partial_path(&self) -> Result<String, String> {
-        Ok(format!("{}/{}", self.user_id(), self.full_name()))
+    fn partial_path(&self) -> String {
+        format!("{}/{}", self.user_id(), self.full_name())
     }
 }
 

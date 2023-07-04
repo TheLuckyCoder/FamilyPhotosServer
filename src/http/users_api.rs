@@ -35,7 +35,12 @@ async fn login(
     mut auth: AuthContext,
     Query(login_user): Query<LoginUser>,
 ) -> AxumResult<impl IntoResponse> {
-    let user = user_repo.get_user(login_user.user_name).await;
+    let user = user_repo
+        .get_user(login_user.user_name)
+        .await
+        .ok_or_else(|| {
+            StatusError::new_status("Wrong user name or password", StatusCode::UNAUTHORIZED)
+        })?;
 
     let valid_credentials = validate_credentials(&login_user.password, &user.password_hash)
         .map_err(|e| {

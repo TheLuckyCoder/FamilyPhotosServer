@@ -139,7 +139,7 @@ pub async fn thumbnail_photo(
 
     check_has_access(&user, &photo)?;
 
-    let photo_path = storage.resolve(photo.partial_path().map_err(StatusError::create)?);
+    let photo_path = storage.resolve(photo.partial_path());
     let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
     let photo_path_clone = photo_path.clone();
     let thumbnail_path_clone = thumbnail_path.clone();
@@ -173,9 +173,7 @@ pub async fn download_photo(
 
     check_has_access(&user, &photo)?;
 
-    let photo_path = state
-        .storage
-        .resolve(photo.partial_path().map_err(StatusError::create)?);
+    let photo_path = state.storage.resolve(photo.partial_path());
 
     file_to_response(&photo_path).await
 }
@@ -190,9 +188,7 @@ pub async fn get_photo_exif(
 
     check_has_access(&user, &photo)?;
 
-    let path = state
-        .storage
-        .resolve(photo.partial_path().map_err(StatusError::create)?);
+    let path = state.storage.resolve(photo.partial_path());
     let exif = task::spawn_blocking(move || read_exif(path)).await.unwrap();
 
     match exif {
@@ -225,12 +221,9 @@ pub async fn delete_photo(
 
     check_has_access(&user, &photo)?;
 
-    let path = photo.partial_path().map_err(StatusError::create)?;
+    let _ = state.storage.delete_file(photo.partial_thumbnail_path());
 
-    let thumbnail_path = photo.partial_thumbnail_path();
-    let _ = state.storage.delete_file(thumbnail_path);
-
-    match state.storage.delete_file(path) {
+    match state.storage.delete_file(photo.partial_path()) {
         Ok(_) => match state.photos_repo.delete_photo(photo_id).await {
             Ok(_count) => Ok("{\"deleted\": true}".to_string()),
             _ => Err(StatusError::create("Failed to remove photo from database")),
@@ -271,8 +264,8 @@ pub async fn change_photo_location(
         folder: query.target_folder_name.clone(),
     };
 
-    let source_path = photo.partial_path().map_err(StatusError::create)?;
-    let destination_path = changed_photo.partial_path().map_err(StatusError::create)?;
+    let source_path = photo.partial_path();
+    let destination_path = changed_photo.partial_path();
 
     storage
         .move_file(&source_path, &destination_path)
