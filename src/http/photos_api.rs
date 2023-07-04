@@ -249,13 +249,11 @@ pub async fn change_photo_location(
 
     check_has_access(&user, &photo)?;
 
-    let target_user_name = query
-        .target_user_name
-        .unwrap_or(PUBLIC_USER_ID.to_string());
+    let target_user_name = query.target_user_name.unwrap_or(PUBLIC_USER_ID.to_string());
 
     let changed_photo = Photo {
         id: photo.id(),
-        user_name: target_user_name,
+        user_id: target_user_name,
         name: photo.name().clone(),
         created_at: photo.created_at().clone(),
         file_size: photo.file_size(),
@@ -291,10 +289,7 @@ pub async fn change_photo_location(
 
 pub async fn public_photos_list(State(state): State<AppState>) -> AxumResult<impl IntoResponse> {
     Ok(Json(
-        state
-            .photos_repo
-            .get_photos_by_user(PUBLIC_USER_ID)
-            .await?,
+        state.photos_repo.get_photos_by_user(PUBLIC_USER_ID).await?,
     ))
 }
 

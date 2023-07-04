@@ -45,7 +45,7 @@ enum UsersCommand {
     /// Remove an existing user
     Remove {
         #[arg(short, long)]
-        user_name: String,
+        user_id: String,
     },
 }
 
@@ -109,9 +109,10 @@ async fn user_commands(state: &AppState, command: UsersCommand) {
         }
         UsersCommand::List => {
             println!(
-                "| {0: <10} | {1: <10} | {2: <10} |",
+                "| {0: <12} | {1: <12} | {2: <12} |",
                 "User Id", "Name", "Photos Count"
             );
+            println!("+{0}+{0}|{0}+", "-".repeat(12 + 2));
 
             let users = state
                 .users_repo
@@ -128,15 +129,22 @@ async fn user_commands(state: &AppState, command: UsersCommand) {
                     .len();
 
                 println!(
-                    "| {0: <10} | {1: <10} | {2: <10} |",
+                    "| {0: <12} | {1: <12} | {2: <12} |",
                     user.id, user.name, count
                 );
             }
         }
-        UsersCommand::Remove { user_name } => {
-            match state.users_repo.delete_user(&user_name).await {
-                Ok(_) => println!("Deleted user with user name: {user_name}"),
-                _ => eprintln!("Failed to remove user with user name: {user_name}"),
+        UsersCommand::Remove { user_id } => {
+            println!("Are you sure you want to delete the user {user_id}? Its files won't be affected. [y/N]");
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input).unwrap();
+            let delete = input.to_lowercase().starts_with('y');
+
+            if delete {
+                match state.users_repo.delete_user(&user_id).await {
+                    Ok(_) => println!("Deleted user with user id: {user_id}"),
+                    _ => eprintln!("Failed to remove user with user name: {user_id}"),
+                }
             }
         }
     }

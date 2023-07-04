@@ -32,7 +32,7 @@ pub trait PhotoBase {
 #[serde(rename_all = "camelCase")]
 pub struct Photo {
     pub id: i64,
-    pub user_name: String,
+    pub user_id: String,
     pub name: String,
     #[serde(with = "primitive_date_time_serde")]
     pub created_at: PrimitiveDateTime,
@@ -42,7 +42,7 @@ pub struct Photo {
 
 impl PhotoBase for Photo {
     fn user_id(&self) -> &String {
-        &self.user_name
+        &self.user_id
     }
 
     fn name(&self) -> &String {

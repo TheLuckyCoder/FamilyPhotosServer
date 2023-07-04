@@ -26,6 +26,23 @@
     },
     "query": "insert into users (id, name, password_hash) values ($1, $2, $3)"
   },
+  "2d751f84e68c2962b06a5f69426079e517a0d0236cde9f26b35a60e8878c36fe": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Text",
+          "Text",
+          "Timestamp",
+          "Int8",
+          "Text"
+        ]
+      }
+    },
+    "query": "update photos set user_id = $2, name = $3, created_at = $4, file_size = $5, folder = $6 where id = $1"
+  },
   "3d95cb60f1dc4e0005583cc3c9d14e553fb90146b405e667ea684512819824b8": {
     "describe": {
       "columns": [
@@ -35,7 +52,7 @@
           "type_info": "Int8"
         },
         {
-          "name": "user_name",
+          "name": "user_id",
           "ordinal": 1,
           "type_info": "Text"
         },
@@ -73,6 +90,110 @@
       }
     },
     "query": "select * from photos order by created_at desc"
+  },
+  "4dc1e7b608cd056bd0d838b21653f251a57ef2e53aa1d77bf096970f2a0383cc": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "user_id",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "name",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 3,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "file_size",
+          "ordinal": 4,
+          "type_info": "Int8"
+        },
+        {
+          "name": "folder",
+          "ordinal": 5,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Timestamp",
+          "Int8",
+          "Text"
+        ]
+      }
+    },
+    "query": "insert into photos (user_id, name, created_at, file_size, folder) values ($1, $2, $3, $4, $5) returning *"
+  },
+  "4ec54d5a3a31f8a2eca3015bf82908821dd704cf676aa3fedc8ddb3f4f9ee73b": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "user_id",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "name",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 3,
+          "type_info": "Timestamp"
+        },
+        {
+          "name": "file_size",
+          "ordinal": 4,
+          "type_info": "Int8"
+        },
+        {
+          "name": "folder",
+          "ordinal": 5,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      }
+    },
+    "query": "select * from photos where user_id = $1 order by created_at desc"
   },
   "7285d2b2e84e826728a5587228f70cc0f7b2439d6a33ba3d116f8d674450833c": {
     "describe": {
@@ -144,56 +265,6 @@
     },
     "query": "delete from photos where id = (select * from UNNEST($1::int8[]))"
   },
-  "8df5b71720ba9672e53e072f54de4422bc53cc19b8eb52dc03421af8057eaa63": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "user_name",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "name",
-          "ordinal": 2,
-          "type_info": "Text"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 3,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "file_size",
-          "ordinal": 4,
-          "type_info": "Int8"
-        },
-        {
-          "name": "folder",
-          "ordinal": 5,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "Text"
-        ]
-      }
-    },
-    "query": "select * from photos where user_name = $1 order by created_at desc"
-  },
   "b0539523e23773e7d01ac00be741e59c56a0dbd6a1cb436c5a92e53062505ab2": {
     "describe": {
       "columns": [],
@@ -205,77 +276,6 @@
       }
     },
     "query": "delete from users where id = $1"
-  },
-  "bdfd788e9f8ab3c2df255798ceb3399ed88327a95f550ebbfb4df00f2692c01a": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Int8"
-        },
-        {
-          "name": "user_name",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "name",
-          "ordinal": 2,
-          "type_info": "Text"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 3,
-          "type_info": "Timestamp"
-        },
-        {
-          "name": "file_size",
-          "ordinal": 4,
-          "type_info": "Int8"
-        },
-        {
-          "name": "folder",
-          "ordinal": 5,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        true
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text",
-          "Timestamp",
-          "Int8",
-          "Text"
-        ]
-      }
-    },
-    "query": "insert into photos (user_name, name, created_at, file_size, folder) values ($1, $2, $3, $4, $5) returning *"
-  },
-  "bf29d77f62c893b5b9a6f7be24060758b07e33893438b6bee33d0a015f940f2c": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Int8",
-          "Text",
-          "Text",
-          "Timestamp",
-          "Int8",
-          "Text"
-        ]
-      }
-    },
-    "query": "update photos set user_name = $2, name = $3, created_at = $4, file_size = $5, folder = $6 where id = $1"
   },
   "c6b37fc8c7116e4a7c9e4671cdbecfa52e2121def2eec61d8ebed0fec2375314": {
     "describe": {
@@ -328,7 +328,7 @@
           "type_info": "Int8"
         },
         {
-          "name": "user_name",
+          "name": "user_id",
           "ordinal": 1,
           "type_info": "Text"
         },

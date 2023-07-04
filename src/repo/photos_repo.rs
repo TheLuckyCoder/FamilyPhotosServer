@@ -33,7 +33,7 @@ impl PhotosRepository {
     ) -> Result<Vec<Photo>, ErrorResponse> {
         query_as!(
             Photo,
-            "select * from photos where user_name = $1 order by created_at desc",
+            "select * from photos where user_id = $1 order by created_at desc",
             user_name.as_ref()
         )
         .fetch_all(&self.pool)
@@ -44,7 +44,7 @@ impl PhotosRepository {
     pub async fn insert_photo(&self, photo: &PhotoBody) -> Result<Photo, ErrorResponse> {
         query_as!(
             Photo,
-            "insert into photos (user_name, name, created_at, file_size, folder) values ($1, $2, $3, $4, $5) returning *",
+            "insert into photos (user_id, name, created_at, file_size, folder) values ($1, $2, $3, $4, $5) returning *",
             photo.user_id(),
             photo.name(),
             photo.created_at(),
@@ -57,9 +57,8 @@ impl PhotosRepository {
     }
 
     pub async fn insert_photos(&self, photos: &[PhotoBody]) -> Result<(), ErrorResponse> {
-        let mut query_builder: QueryBuilder<Postgres> = QueryBuilder::new(
-            "insert into photos (user_name, name, created_at, file_size, folder) ",
-        );
+        let mut query_builder: QueryBuilder<Postgres> =
+            QueryBuilder::new("insert into photos (user_id, name, created_at, file_size, folder) ");
 
         query_builder.push_values(photos, |mut b, photo| {
             b.push_bind(photo.user_id())
@@ -80,7 +79,7 @@ impl PhotosRepository {
 
     pub async fn update_photo(&self, photo: &Photo) -> Result<(), ErrorResponse> {
         query!(
-            "update photos set user_name = $2, name = $3, created_at = $4, file_size = $5, folder = $6 where id = $1",
+            "update photos set user_id = $2, name = $3, created_at = $4, file_size = $5, folder = $6 where id = $1",
             photo.id(),
             photo.user_id(),
             photo.name(),
