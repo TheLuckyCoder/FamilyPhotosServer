@@ -85,7 +85,7 @@ impl DataScan {
 
         match timestamp {
             Some(date_time) => Some(PhotoBody::new(
-                user_name.clone(),
+                user_name,
                 entry.file_name().to_string_lossy().to_string(),
                 PrimitiveDateTime::new(date_time.date(), date_time.time()),
                 fs::metadata(path).map_or(0i64, |data| data.len() as i64),

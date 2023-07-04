@@ -26,9 +26,15 @@ pub fn get_timestamp_for_path<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTi
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct GooglePhotoTimestamp {
+    timestamp: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct GooglePhotoJsonData {
-    creation_time: Option<u64>,
-    photo_taken_time: Option<u64>,
+    creation_time: Option<GooglePhotoTimestamp>,
+    photo_taken_time: Option<GooglePhotoTimestamp>,
 }
 
 fn get_json_timestamp(path: &Path) -> Option<u64> {
@@ -46,7 +52,10 @@ fn get_json_timestamp(path: &Path) -> Option<u64> {
     let json = serde_json::from_reader::<_, GooglePhotoJsonData>(reader);
 
     match json {
-        Ok(json_data) => json_data.photo_taken_time.or(json_data.creation_time),
+        Ok(json_data) => json_data
+            .photo_taken_time
+            .or(json_data.creation_time)
+            .map(|t| t.timestamp),
         Err(e) => {
             error!("Failed parsing Json ({json_file_name}): {e}");
             None

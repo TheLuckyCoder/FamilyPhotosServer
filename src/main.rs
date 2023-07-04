@@ -1,9 +1,12 @@
 use std::net::SocketAddr;
+use std::str::FromStr;
 
 use axum_server::tls_rustls::RustlsConfig;
-use sqlx::postgres::PgPoolOptions;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use sqlx::ConnectOptions;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
+use tracing::log::LevelFilter;
 use tracing::{error, info};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -40,10 +43,14 @@ async fn main() -> Result<(), String> {
         .with(EnvFilter::from_default_env())
         .init();
 
+    let mut connect_options = PgConnectOptions::from_str(&vars.database_url)
+        .expect("Failed to deserialize connection string");
+    connect_options.log_statements(LevelFilter::Debug);
+
     // Database pool and app state
     let pool = PgPoolOptions::new()
         .max_connections(128)
-        .connect(&vars.database_url)
+        .connect_with(connect_options)
         .await
         .expect("Error building the connection pool");
 

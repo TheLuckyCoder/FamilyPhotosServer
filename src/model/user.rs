@@ -1,6 +1,6 @@
 use axum_login::secrecy::SecretVec;
 use axum_login::AuthUser;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct User {
@@ -9,7 +9,7 @@ pub struct User {
     pub password_hash: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SimpleUser {
     pub display_name: String,
