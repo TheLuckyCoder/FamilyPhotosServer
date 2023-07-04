@@ -13,11 +13,12 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
 use crate::http::AppState;
-use crate::model::user::User;
+use crate::model::user::{User, PUBLIC_USER_ID};
 use crate::repo::photos_repo::PhotosRepository;
 use crate::repo::users_repo::UsersRepository;
 use crate::utils::env_reader::EnvVariables;
 use crate::utils::file_storage::FileStorage;
+use crate::utils::password_hash::{generate_hash_from_password, generate_random_password};
 
 mod cli;
 mod file_scan;
@@ -45,7 +46,7 @@ async fn main() -> Result<(), String> {
 
     let mut connect_options = PgConnectOptions::from_str(&vars.database_url)
         .expect("Failed to deserialize connection string");
-    connect_options.log_statements(LevelFilter::Debug);
+    connect_options.log_statements(LevelFilter::Trace);
 
     // Database pool and app state
     let pool = PgPoolOptions::new()
@@ -65,11 +66,15 @@ async fn main() -> Result<(), String> {
         return Ok(());
     }
 
+    // Create default public user
+    create_public_user(&app_state.users_repo).await?;
+
     // Scan the storage directory for new photos in the background
     if vars.scan_new_files {
         file_scan::scan_new_files(app_state.clone());
     }
 
+    // Generate thumbnails in background
     if vars.generate_thumbnails_background {
         match thumbnail::generate_background(app_state.clone()).await {
             Ok(_) => info!("Background thumbnail generation finished"),
@@ -104,4 +109,22 @@ async fn main() -> Result<(), String> {
     .expect("Failed to start axum server");
 
     Ok(())
+}
+
+async fn create_public_user(repo: &UsersRepository) -> Result<(), String> {
+    if repo.get_user(PUBLIC_USER_ID).await.is_some() {
+        return Ok(());
+    }
+
+    let user = User {
+        id: PUBLIC_USER_ID.to_string(),
+        name: PUBLIC_USER_ID.to_string(),
+        password_hash: generate_hash_from_password(generate_random_password()),
+    };
+
+    println!("No users found, creating public user");
+
+    repo.insert_user(&user)
+        .await
+        .map_err(|e| format!("Failed to create public user: {e}"))
 }

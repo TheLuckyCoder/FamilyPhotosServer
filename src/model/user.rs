@@ -12,15 +12,15 @@ pub struct User {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SimpleUser {
+    pub user_id: String,
     pub display_name: String,
-    pub user_name: String,
 }
 
 impl SimpleUser {
     pub fn from_user(user: &User) -> Self {
         SimpleUser {
+            user_id: user.id.clone(),
             display_name: user.name.clone(),
-            user_name: user.id.clone(),
         }
     }
 }
@@ -34,3 +34,5 @@ impl AuthUser<String> for User {
         SecretVec::new(self.password_hash.clone().into())
     }
 }
+
+pub const PUBLIC_USER_ID: &str = "public";

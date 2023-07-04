@@ -12,6 +12,20 @@
     },
     "query": "delete from session where key = $1"
   },
+  "21a3051127145ddc300edb0993b279f59fb2b0e371ed7c3a9d07acc8c85651da": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text"
+        ]
+      }
+    },
+    "query": "insert into users (id, name, password_hash) values ($1, $2, $3)"
+  },
   "3d95cb60f1dc4e0005583cc3c9d14e553fb90146b405e667ea684512819824b8": {
     "describe": {
       "columns": [
@@ -364,40 +378,6 @@
       }
     },
     "query": "delete from session"
-  },
-  "e8744dbd336da424f303701970c7fd36a57e60cba933ab606af7dce475388fd4": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Text"
-        },
-        {
-          "name": "name",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "password_hash",
-          "ordinal": 2,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text",
-          "Text"
-        ]
-      }
-    },
-    "query": "insert into users (id, name, password_hash) values ($1, $2, $3) returning *"
   },
   "f70d07470cfad26e788f67f445b18bf6ea415b60fdbc5759f6d5b03a62a8b924": {
     "describe": {

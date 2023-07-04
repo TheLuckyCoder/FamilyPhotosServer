@@ -3,7 +3,7 @@ use crate::http::utils::status_error::StatusError;
 use crate::http::utils::{file_to_response, AxumResult};
 use crate::http::AppState;
 use crate::model::photo::{Photo, PhotoBase, PhotoBody};
-use crate::model::user::User;
+use crate::model::user::{User, PUBLIC_USER_ID};
 use crate::thumbnail::generate_thumbnail;
 use crate::utils::{internal_error, primitive_date_time_serde, read_exif};
 use axum::response::ErrorResponse;
@@ -20,8 +20,6 @@ use std::string::ToString;
 use tokio::io::AsyncWriteExt;
 use tokio::{fs, task};
 use tracing::{error, info};
-
-const PUBLIC_USER_NAME: &str = "public";
 
 pub fn router(app_state: AppState) -> Router {
     let user_router = Router::new()
@@ -56,7 +54,7 @@ pub struct UploadData {
 }
 
 fn check_has_access(user: &User, photo: &Photo) -> Result<(), ErrorResponse> {
-    if photo.user_id() == &user.id || photo.user_id() == PUBLIC_USER_NAME {
+    if photo.user_id() == &user.id || photo.user_id() == PUBLIC_USER_ID {
         Ok(())
     } else {
         Err(StatusError::new_status(
@@ -253,7 +251,7 @@ pub async fn change_photo_location(
 
     let target_user_name = query
         .target_user_name
-        .unwrap_or(PUBLIC_USER_NAME.to_string());
+        .unwrap_or(PUBLIC_USER_ID.to_string());
 
     let changed_photo = Photo {
         id: photo.id(),
@@ -295,7 +293,7 @@ pub async fn public_photos_list(State(state): State<AppState>) -> AxumResult<imp
     Ok(Json(
         state
             .photos_repo
-            .get_photos_by_user(PUBLIC_USER_NAME)
+            .get_photos_by_user(PUBLIC_USER_ID)
             .await?,
     ))
 }
@@ -305,7 +303,7 @@ pub async fn public_upload_photo(
     Query(query): Query<UploadData>,
     payload: Multipart,
 ) -> impl IntoResponse {
-    base_upload_photo(state, PUBLIC_USER_NAME.to_string(), query, payload).await
+    base_upload_photo(state, PUBLIC_USER_ID.to_string(), query, payload).await
 }
 
 // endregion Public

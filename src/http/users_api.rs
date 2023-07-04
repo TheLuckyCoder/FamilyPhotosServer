@@ -5,7 +5,7 @@ use axum::routing::post;
 use axum::{Json, Router};
 use axum_login::{PostgresStore, RequireAuthorizationLayer};
 use serde::Deserialize;
-use tracing::error;
+use tracing::{debug, error};
 
 use crate::http::utils::status_error::StatusError;
 use crate::http::utils::AxumResult;
@@ -26,7 +26,7 @@ pub fn router(users_repo: UsersRepository) -> Router {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginUser {
-    pub user_name: String,
+    pub user_id: String,
     pub password: String,
 }
 
@@ -36,7 +36,7 @@ async fn login(
     Query(login_user): Query<LoginUser>,
 ) -> AxumResult<impl IntoResponse> {
     let user = user_repo
-        .get_user(login_user.user_name)
+        .get_user(login_user.user_id)
         .await
         .ok_or_else(|| {
             StatusError::new_status("Wrong user name or password", StatusCode::UNAUTHORIZED)
@@ -64,6 +64,9 @@ async fn login(
 }
 
 async fn logout(mut auth: AuthContext) {
-    dbg!("Logging out user: {}", &auth.current_user);
-    auth.logout().await;
+    if let Some(user) = &auth.current_user {
+        debug!("Logging out user: {}", user.id);
+
+        auth.logout().await;
+    }
 }

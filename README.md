@@ -15,9 +15,10 @@ While some of these are optional, it is recommended to install them all.
 
 ### Configuration
 The server can be configured using a .env file located in the same folder as the executable or setting environment variables.<br>
-
+Variables in bold **must** be specified.
 - **SERVER_PORT**: The port the server should listen on
 - **DATABASE_URL** (eg: postgres://username:password@localhost/database?sslmode=disable)
+- **SESSION_SECRET**: Used to hash the session cookie with. Must be at least 64 bytes long (64 chars)
 - **STORAGE_PATH**: The path to the folder where the photos will be stored
 - THUMBNAIL_PATH: The path to the folder where the thumbnails of the photos will be generated (default: in STORAGE_PATH/.thumbnail)
 - USE_HTTPS: Run the web server in HTTPS Mode, recommended if you don't have a reverse proxy (default: false)

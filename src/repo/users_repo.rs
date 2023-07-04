@@ -28,16 +28,16 @@ impl UsersRepository {
             .await
     }
 
-    pub async fn insert_user(&self, user: User) -> Result<User, Error> {
-        query_as!(
-            User,
-            "insert into users (id, name, password_hash) values ($1, $2, $3) returning *",
+    pub async fn insert_user(&self, user: &User) -> Result<(), Error> {
+        query!(
+            "insert into users (id, name, password_hash) values ($1, $2, $3)",
             user.id,
             user.name,
             user.password_hash
         )
-        .fetch_one(&self.pool)
+        .execute(&self.pool)
         .await
+        .map(|_| ())
     }
 
     pub async fn delete_user<T: AsRef<str>>(&self, user_name: T) -> Result<(), Error> {
