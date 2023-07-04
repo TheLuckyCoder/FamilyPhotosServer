@@ -53,10 +53,10 @@ impl FileStorage {
         new_path
     }
 
-    pub fn move_file<P: AsRef<Path>>(
+    pub fn move_file<P1: AsRef<Path>, P2: AsRef<Path>>(
         &self,
-        src_relative: P,
-        dest_relative: P,
+        src_relative: P1,
+        dest_relative: P2,
     ) -> std::io::Result<()> {
         fs::rename(self.resolve(src_relative), self.resolve(dest_relative))
     }

@@ -255,13 +255,18 @@ pub async fn change_photo_location(
         id: photo.id(),
         user_id: target_user_name,
         name: photo.name().clone(),
-        created_at: photo.created_at().clone(),
+        created_at: *photo.created_at(),
         file_size: photo.file_size(),
         folder: query.target_folder_name.clone(),
     };
 
     let source_path = photo.partial_path();
     let destination_path = changed_photo.partial_path();
+
+    // Create parent directory if it doesn't exist
+    if let Some(parent) = std::path::Path::new(destination_path.as_str()).parent() {
+        fs::create_dir_all(parent).await.map_err(internal_error)?;
+    }
 
     storage
         .move_file(&source_path, &destination_path)
