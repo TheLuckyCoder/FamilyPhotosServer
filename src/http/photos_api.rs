@@ -256,7 +256,7 @@ pub async fn change_photo_location(
         id: photo.id(),
         user_id: target_user_name,
         name: photo.name().clone(),
-        created_at: *photo.created_at(),
+        created_at: photo.created_at(),
         file_size: photo.file_size(),
         folder: query.target_folder_name.clone(),
     };
@@ -280,8 +280,6 @@ pub async fn change_photo_location(
         .update_photo(&changed_photo)
         .await
         .map_err(|_| StatusError::create("Something went wrong moving the photo"))?;
-
-    info!("Moved photo from {source_path} to {destination_path} successfully");
 
     Ok(Json(changed_photo))
 }

@@ -8,7 +8,7 @@ pub trait PhotoBase {
 
     fn name(&self) -> &String;
 
-    fn created_at(&self) -> &PrimitiveDateTime;
+    fn created_at(&self) -> PrimitiveDateTime;
 
     fn file_size(&self) -> i64;
 
@@ -49,8 +49,8 @@ impl PhotoBase for Photo {
         &self.name
     }
 
-    fn created_at(&self) -> &PrimitiveDateTime {
-        &self.created_at
+    fn created_at(&self) -> PrimitiveDateTime {
+        self.created_at
     }
 
     fn file_size(&self) -> i64 {
@@ -101,8 +101,8 @@ impl PhotoBase for PhotoBody {
         &self.name
     }
 
-    fn created_at(&self) -> &PrimitiveDateTime {
-        &self.created_at
+    fn created_at(&self) -> PrimitiveDateTime {
+        self.created_at
     }
 
     fn file_size(&self) -> i64 {

@@ -22,6 +22,7 @@ mod utils;
 pub fn router(pool: PgPool, app_state: AppState, session_secret: &[u8]) -> Router {
     let session_store = SessionRepository::new(pool.clone());
     let session_layer = SessionLayer::new(session_store, session_secret)
+        .with_session_ttl(None)
         .with_persistence_policy(PersistencePolicy::ChangedOnly);
 
     let user_store = PostgresStore::<User>::new(pool);
