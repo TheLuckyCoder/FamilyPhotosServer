@@ -18,7 +18,7 @@ pub struct SimpleUser {
 
 impl SimpleUser {
     pub fn from_user(user: &User) -> Self {
-        SimpleUser {
+        Self {
             user_id: user.id.clone(),
             display_name: user.name.clone(),
         }
