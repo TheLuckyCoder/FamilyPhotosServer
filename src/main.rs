@@ -1,37 +1,30 @@
-extern crate diesel;
+use std::net::SocketAddr;
+use std::str::FromStr;
 
-use std::fs::File;
-use std::io::BufReader;
-
-use actix::SyncArbiter;
-use actix_web::middleware::{Logger, TrailingSlash};
-use actix_web::web::Data;
-use actix_web::{dev::ServiceRequest, middleware, web, App, Error, HttpResponse, HttpServer};
-use actix_web_httpauth::extractors::{basic, AuthenticationError};
-use actix_web_httpauth::headers::www_authenticate::basic::Basic;
-use actix_web_httpauth::middleware::HttpAuthentication;
-use env_logger::Env;
-use rustls::{Certificate, PrivateKey, ServerConfig};
-use rustls_pemfile::{certs, pkcs8_private_keys};
+use axum_server::tls_rustls::RustlsConfig;
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+use sqlx::ConnectOptions;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
+use tracing::log::LevelFilter;
+use tracing::{error, info};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
 
-use crate::api::photos_api::*;
-use crate::api::users_api::*;
-use crate::db::users_db::{GetUsers, InsertUser};
-use crate::db::DbActor;
-use crate::model::user::User;
+use crate::http::AppState;
+use crate::model::user::{User, PUBLIC_USER_ID};
+use crate::repo::photos_repo::PhotosRepository;
+use crate::repo::users_repo::UsersRepository;
 use crate::utils::env_reader::EnvVariables;
 use crate::utils::file_storage::FileStorage;
-use crate::utils::password_hash::{generate_password, get_hash_from_password};
-use crate::utils::AppState;
+use crate::utils::password_hash::{generate_hash_from_password, generate_random_password};
 
-mod api;
 mod cli;
-mod db;
 mod file_scan;
+mod http;
 mod model;
-mod schema;
+mod repo;
 mod thumbnail;
 mod utils;
 
@@ -39,184 +32,99 @@ mod utils;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-static mut USERS: Vec<User> = Vec::new();
-
-async fn any_user_auth_validator(
-    req: ServiceRequest,
-    credentials: basic::BasicAuth,
-) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    let found = unsafe { USERS.clone() }
-        .into_iter()
-        .find(|user| user.user_name == credentials.user_id());
-
-    if let Some(user) = found {
-        if let Some(password) = credentials.password() {
-            if get_hash_from_password(&password.to_string()) == user.password {
-                return Ok(req);
-            }
-        }
-    }
-
-    Err((Error::from(AuthenticationError::new(Basic::new())), req))
-}
-
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() -> Result<(), String> {
+    // Environment Variables
     EnvVariables::init();
     let vars = EnvVariables::get_all();
-    env_logger::Builder::from_env(Env::default())
-        .format_timestamp(None)
+
+    // Logging
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().compact())
+        .with(EnvFilter::from_default_env())
         .init();
 
-    let manager = SyncArbiter::start(2, move || DbActor::new(vars.database_url.as_str()));
+    let mut connect_options = PgConnectOptions::from_str(&vars.database_url)
+        .expect("Failed to deserialize connection string");
+    connect_options.log_statements(LevelFilter::Trace);
+
+    // Database pool and app state
+    let pool = PgPoolOptions::new()
+        .max_connections(128)
+        .connect_with(connect_options)
+        .await
+        .expect("Error building the connection pool");
 
     let app_state = AppState {
-        db: manager.clone(),
         storage: FileStorage::new(vars.storage_path, vars.thumbnail_path),
+        users_repo: UsersRepository::new(pool.clone()),
+        photos_repo: PhotosRepository::new(pool.clone()),
     };
 
-    if cli::run_cli(&app_state).await {
+    // Create default public user
+    create_public_user(&app_state.users_repo).await?;
+
+    // Run the CLI
+    if cli::run_cli(&pool, &app_state).await {
         return Ok(());
     }
 
     // Scan the storage directory for new photos in the background
     if vars.scan_new_files {
-        let app_state_copy = app_state.clone();
-        file_scan::scan_new_files(app_state_copy).await;
+        file_scan::scan_new_files(app_state.clone());
     }
 
+    // Generate thumbnails in background
     if vars.generate_thumbnails_background {
-        match thumbnail::generate_background(&app_state.clone()).await {
-            Ok(_) => log::info!("Background thumbnail generation finished"),
-            Err(e) => log::error!("Could not start background thumbnail generation: {e}"),
+        match thumbnail::generate_all_background(app_state.clone()).await {
+            Ok(_) => info!("Background thumbnail generation finished"),
+            Err(e) => error!("Could not start background thumbnail generation: {e}"),
         }
     }
 
-    {
-        let mut users: Vec<User> = match manager.send(GetUsers).await {
-            Ok(Ok(users)) => users,
-            _ => panic!("Could not load users"),
-        };
+    info!("Server listening on port {}", vars.server_port);
 
-        if users.is_empty() {
-            let public_user = User {
-                id: 1,
-                display_name: "Public".to_string(),
-                user_name: "public".to_string(),
-                password: generate_password(),
-            };
-
-            println!(
-                "No users found, creating public user with password: {}",
-                public_user.password
-            );
-
-            match manager.send(InsertUser::WithId(public_user)).await {
-                Ok(Ok(user)) => users = vec![user],
-                _ => panic!("Failed to create public user"),
-            };
-        }
-
-        unsafe {
-            USERS = users;
-        }
-    }
-
-    log::info!("Starting server on port {}", vars.server_port);
-
-    let server = HttpServer::new(move || {
-        let logger = Logger::new(r#"%r %s %b "%{User-Agent}i" %T"#);
-        let auth = HttpAuthentication::basic(any_user_auth_validator);
-
-        App::new()
-            .wrap(logger)
-            .wrap(middleware::NormalizePath::new(TrailingSlash::Trim))
-            .service(web::resource("").to(HttpResponse::Ok))
-            .service(web::resource("/ping").to(HttpResponse::Ok))
-            .service(
-                web::scope("/user")
-                    .wrap(auth.clone())
-                    .service(get_user)
-                    .service(get_users),
-            )
-            .service(
-                web::scope("/photos")
-                    .wrap(auth.clone())
-                    .service(photos_list)
-                    .service(thumbnail_photo)
-                    .service(download_photo)
-                    .service(get_photo_exif)
-                    .service(upload_photo)
-                    .service(update_photo_caption)
-                    .service(delete_photo)
-                    .service(change_photo_location),
-            )
-            .service(
-                web::scope("/public_photos")
-                    .wrap(auth)
-                    .service(public_photos_list)
-                    .service(public_thumbnail_photo)
-                    .service(public_download_photo)
-                    .service(public_upload_photo)
-                    .service(public_update_photo_caption)
-                    .service(public_delete_photo),
-            )
-            .app_data(Data::new(app_state.clone()))
-    });
+    let http_service =
+        http::router(pool, app_state, vars.session_secret.as_bytes()).into_make_service();
+    let addr = SocketAddr::from(([127, 0, 0, 1], vars.server_port));
 
     if vars.use_https {
-        let config = load_rustls_config(
+        let config = RustlsConfig::from_pem_file(
             vars.ssl_certs_path
                 .expect("SSL_CERTS_PATH variable is missing"),
             vars.ssl_private_key_path
                 .expect("SSL_PRIVATE_KEY_PATH variable is missing"),
-        )?;
+        )
+        .await
+        .map_err(|e| format!("Failed to load TLS config: {}", e))?;
 
-        log::info!("Server configured successfully in HTTPS mode");
-        server
-            .bind_rustls(("127.0.0.1", vars.server_port), config)?
-            .run()
+        info!("Server configured in HTTPS mode");
+        axum_server::bind_rustls(addr, config)
+            .serve(http_service)
             .await
     } else {
-        log::info!("Server configured successfully in HTTP mode");
-        server.bind(("127.0.0.1", vars.server_port))?.run().await
+        info!("Server configured in HTTP mode");
+        axum_server::bind(addr).serve(http_service).await
     }
+    .expect("Failed to start axum server");
+
+    Ok(())
 }
 
-fn load_rustls_config(certs_path: String, key_path: String) -> std::io::Result<ServerConfig> {
-    // init server config builder with safe defaults
-    let config = ServerConfig::builder()
-        .with_safe_defaults()
-        .with_no_client_auth();
-
-    // load TLS key/cert files
-    let cert_file = &mut BufReader::new(File::open(certs_path)?);
-    let key_file = &mut BufReader::new(File::open(key_path)?);
-
-    // convert files to key/cert objects
-    let cert_chain = certs(cert_file)
-        .unwrap()
-        .into_iter()
-        .map(Certificate)
-        .collect();
-    let mut keys: Vec<PrivateKey> = pkcs8_private_keys(key_file)
-        .unwrap()
-        .into_iter()
-        .map(PrivateKey)
-        .collect();
-
-    // exit if no keys could be parsed
-    if keys.is_empty() {
-        eprintln!("Could not locate PKCS 8 private keys.");
-        std::process::exit(1);
+async fn create_public_user(repo: &UsersRepository) -> Result<(), String> {
+    if repo.get_user(PUBLIC_USER_ID).await.is_some() {
+        return Ok(());
     }
 
-    config
-        .with_single_cert(cert_chain, keys.remove(0))
-        .map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Could not load TLS config: {}", e),
-            )
-        })
+    let user = User {
+        id: PUBLIC_USER_ID.to_string(),
+        name: PUBLIC_USER_ID.to_string(),
+        password_hash: generate_hash_from_password(generate_random_password()),
+    };
+
+    println!("No users found, creating public user");
+
+    repo.insert_user(&user)
+        .await
+        .map_err(|e| format!("Failed to create public user: {e}"))
 }

@@ -1,9 +1,12 @@
+use tokio::task::JoinHandle;
 use crate::file_scan::data_scan::DataScan;
-use crate::utils::AppState;
+use crate::http::AppState;
+use tracing::debug;
 
 mod data_scan;
 mod timestamp;
 
-pub async fn scan_new_files(app_state: AppState) {
-    DataScan::run(app_state).await;
+pub fn scan_new_files(app_state: AppState) -> JoinHandle<()> {
+    debug!("Started scanning for new files");
+    DataScan::run(app_state)
 }

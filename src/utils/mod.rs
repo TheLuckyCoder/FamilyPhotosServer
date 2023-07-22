@@ -1,4 +1,5 @@
-use crate::utils::file_storage::FileStorage;
+use axum::http::StatusCode;
+use axum::response::{ErrorResponse, IntoResponse};
 use exif::In;
 use serde::Serialize;
 use std::fs;
@@ -9,12 +10,6 @@ pub mod env_reader;
 pub mod file_storage;
 pub mod password_hash;
 pub mod primitive_date_time_serde;
-
-#[derive(Clone)]
-pub struct AppState {
-    pub db: actix::Addr<crate::db::DbActor>,
-    pub storage: FileStorage,
-}
 
 #[derive(Debug, Serialize)]
 pub struct ExifField {
@@ -41,4 +36,13 @@ pub fn read_exif<P: AsRef<Path>>(absolute_path: P) -> Option<Vec<ExifField>> {
     }
 
     Some(exif_data)
+}
+
+/// Utility function for mapping any error into a `500 Internal Server Error`
+/// response.
+pub fn internal_error<E>(err: E) -> ErrorResponse
+where
+    E: std::error::Error,
+{
+    ErrorResponse::from((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response())
 }

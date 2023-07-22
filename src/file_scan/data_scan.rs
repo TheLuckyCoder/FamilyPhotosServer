@@ -5,44 +5,43 @@ use std::time::Instant;
 
 use rayon::prelude::*;
 use time::PrimitiveDateTime;
+use tokio::task;
+use tokio::task::JoinHandle;
+use tracing::{debug, info, warn};
 use walkdir::{DirEntry, WalkDir};
 
-use crate::db::photos_db::{DeletePhotos, GetPhotos, InsertPhotos};
 use crate::file_scan::timestamp;
-use crate::model::photo::Photo;
-use crate::{AppState, FileStorage, GetUsers, User};
+use crate::model::photo::{Photo, PhotoBase, PhotoBody};
+use crate::{AppState, FileStorage, User};
 
 pub struct DataScan {
-    results: Vec<(User, Vec<Photo>)>,
+    results: Vec<(User, Vec<PhotoBody>)>,
 }
 
 impl DataScan {
-    pub async fn run(app_state: AppState) {
-        let db = app_state.db.borrow();
-        let users: Vec<User> = match db.send(GetUsers).await {
-            Ok(Ok(users)) => users,
-            _ => panic!("Could not load users"),
-        };
+    pub fn run(app_state: AppState) -> JoinHandle<()> {
+        task::spawn(async move {
+            let users: Vec<User> = app_state
+                .users_repo
+                .get_users()
+                .await
+                .expect("Could not load users");
 
-        actix_web::rt::spawn(async move {
             let instant = Instant::now();
             let data_scan = Self::scan(users, app_state.storage.borrow());
             data_scan.update_database(&app_state).await;
 
-            log::debug!(
+            debug!(
                 "Photos scanning completed in {} seconds",
                 instant.elapsed().as_secs()
             );
-        });
+        })
     }
 
     fn scan(users: Vec<User>, storage: &FileStorage) -> Self {
-        log::debug!(
+        debug!(
             "Started scanning user's photos: {:?}",
-            users
-                .iter()
-                .map(|user| user.user_name.clone())
-                .collect::<Vec<_>>()
+            users.iter().map(|user| user.id.clone()).collect::<Vec<_>>()
         );
 
         let results = users
@@ -53,10 +52,10 @@ impl DataScan {
         Self { results }
     }
 
-    fn scan_user_photos(storage: &FileStorage, user: User) -> (User, Vec<Photo>) {
+    fn scan_user_photos(storage: &FileStorage, user: User) -> (User, Vec<PhotoBody>) {
         let mut photos = Vec::with_capacity(8192 * 4);
 
-        let user_path = storage.resolve(&user.user_name);
+        let user_path = storage.resolve_photo(&user.id);
         if !user_path.exists() {
             fs::create_dir(user_path).unwrap()
         } else {
@@ -69,75 +68,72 @@ impl DataScan {
                     continue;
                 }
 
-                if let Some(photo) = Self::parse_image(user.id, entry) {
+                if let Some(photo) = Self::parse_image(user.id.clone(), entry) {
                     photos.push(photo)
                 }
             }
         }
 
-        log::info!("Finished scanning for {}", user.user_name);
+        info!("Finished scanning for {}", user.id);
 
         (user, photos)
     }
 
-    pub fn parse_image(user_id: i64, entry: DirEntry) -> Option<Photo> {
+    pub fn parse_image(user_name: String, entry: DirEntry) -> Option<PhotoBody> {
         let path = entry.path();
 
         let timestamp = timestamp::get_timestamp_for_path(path);
 
         match timestamp {
-            Some(date_time) => Some(Photo {
-                id: 0,
-                owner: user_id,
-                name: entry.file_name().to_string_lossy().to_string(),
-                time_created: PrimitiveDateTime::new(date_time.date(), date_time.time()),
-                file_size: fs::metadata(path).map_or(0i64, |data| data.len() as i64),
-                folder: if entry.depth() == 2 {
+            Some(date_time) => Some(PhotoBody::new(
+                user_name,
+                entry.file_name().to_string_lossy().to_string(),
+                PrimitiveDateTime::new(date_time.date(), date_time.time()),
+                fs::metadata(path).map_or(0i64, |data| data.len() as i64),
+                if entry.depth() == 2 {
                     Some(path.parent()?.file_name()?.to_string_lossy().to_string())
                 } else {
                     None
                 },
-                caption: None,
-            }),
+            )),
             None => {
-                log::warn!("No timestamp: {}", path.display());
+                warn!("No timestamp: {}", path.display());
                 None
             }
         }
     }
 
     async fn update_database(self, app_state: &AppState) {
-        let db = app_state.db.clone();
         let storage = app_state.storage.borrow();
+        let photos_repo = app_state.photos_repo.borrow();
 
-        let existing_photos: Vec<Photo> = db.send(GetPhotos::All).await.ok().unwrap().unwrap();
+        let existing_photos: Vec<Photo> = photos_repo
+            .get_photos()
+            .await
+            .expect("Failed to get photos");
         let existing_photos_names: Vec<String> = existing_photos
             .iter()
             .map(|photo| photo.full_name())
             .collect();
 
         for (user, mut found_photos) in self.results {
-            log::info!(
-                "Scanned {} photos in user {}",
-                found_photos.len(),
-                user.user_name
-            );
+            info!("Scanned {} photos in user {}", found_photos.len(), user.id);
 
-            // Add any photo that was not already in the database
+            // Add any photo that was not already in the db
             // Keep only new photos
             found_photos.retain(|photo| !existing_photos_names.contains(&photo.full_name()));
 
             if !found_photos.is_empty() {
-                log::info!(
+                info!(
                     "Adding {} new photos to user {}",
                     found_photos.len(),
-                    user.user_name
+                    user.id
                 );
 
                 for chunk in found_photos.chunks(512) {
-                    db.send(InsertPhotos(Vec::from(chunk)))
+                    photos_repo
+                        .insert_photos(chunk)
                         .await
-                        .unwrap()
                         .expect("Failed to insert photos");
                 }
             }
@@ -145,26 +141,26 @@ impl DataScan {
             let removed_photos = existing_photos
                 .iter()
                 .filter(|photo| {
-                    photo.owner == user.id
+                    photo.user_id() == &user.id
                         && !storage
-                            .resolve(format!("{}/{}", user.user_name, photo.full_name()))
+                            .resolve_photo(format!("{}/{}", user.id, photo.full_name()))
                             .exists()
                 })
-                .map(|photo| photo.id)
+                .map(|photo| photo.id())
                 .collect::<Vec<i64>>();
 
             if !removed_photos.is_empty() {
-                log::info!(
+                info!(
                     "Removing {} photos from user {}",
                     removed_photos.len(),
-                    user.user_name
+                    user.id
                 );
-                db.send(DeletePhotos {
-                    ids: removed_photos,
-                })
-                .await
-                .unwrap()
-                .unwrap();
+
+                app_state
+                    .photos_repo
+                    .delete_photos(&removed_photos)
+                    .await
+                    .expect("Failed to delete photo");
             }
         }
     }

@@ -1,31 +1,38 @@
-use crate::schema::users;
-use diesel::{Insertable, Queryable};
-use serde::{Deserialize, Serialize};
+use axum_login::secrecy::SecretVec;
+use axum_login::AuthUser;
+use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Eq, Queryable, Insertable, Deserialize)]
-#[diesel(table_name = users)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct User {
-    pub id: i64,
-    pub display_name: String,
-    pub user_name: String,
-    pub password: String,
+    pub id: String,
+    pub name: String,
+    pub password_hash: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SimpleUser {
-    pub id: i64,
+    pub user_id: String,
     pub display_name: String,
-    pub user_name: String,
 }
 
 impl SimpleUser {
     pub fn from_user(user: &User) -> Self {
-        SimpleUser {
-            id: user.id,
-            display_name: user.display_name.clone(),
-            user_name: user.user_name.clone(),
+        Self {
+            user_id: user.id.clone(),
+            display_name: user.name.clone(),
         }
     }
 }
+
+impl AuthUser<String> for User {
+    fn get_id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn get_password_hash(&self) -> SecretVec<u8> {
+        SecretVec::new(self.password_hash.clone().into())
+    }
+}
+
+pub const PUBLIC_USER_ID: &str = "public";

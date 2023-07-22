@@ -1,14 +1,16 @@
 use std::cmp::max;
 use std::fs;
-use std::io::BufReader;
+use std::fs::File;
+use std::io::{BufReader, Write};
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-use actix_files::file_extension_to_mime;
 use exif::{In, Tag};
 use image::imageops::FilterType;
 use image::DynamicImage;
+use mime_guess::MimeGuess;
+use tracing::{error, info, warn};
 use wait_timeout::ChildExt;
 
 const THUMBNAIL_TARGET_SIZE: u32 = 500;
@@ -31,42 +33,40 @@ fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> std::io::Resul
     }
 }
 
-fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(load_path: P, save_path: R) -> Option<()> {
-    log::info!(
-        "Generating thumbnail for video {}",
-        load_path.as_ref().display()
-    );
+fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(
+    load_path: P,
+    save_path: R,
+) -> Result<(), String> {
     let intermediate_path = save_path
         .as_ref()
-        .to_str()?
+        .to_str()
+        .ok_or_else(|| "Failed to get string from path".to_string())?
         .rsplit_once('.')
-        .map(|(before, _after)| before.to_string() + ".jpg")?;
+        .map(|(before, _after)| before.to_string() + ".jpg")
+        .ok_or_else(|| "Failed split path".to_string())?;
 
-    let mut command = Command::new("ffmpegthumbnailer");
-    command
-        .arg("-i")
-        .arg(load_path.as_ref())
-        .arg("-o")
-        .arg(Path::new(&intermediate_path))
-        .arg("-s")
-        .arg(THUMBNAIL_TARGET_SIZE.to_string());
+    let mut thumbnailer = ffthumb::Thumbnailer::builder()
+        .time(5)
+        .size(THUMBNAIL_TARGET_SIZE)
+        .finalize();
 
-    let mut child = command.spawn().ok()?;
+    let input_path = load_path.as_ref().to_string_lossy();
 
-    match child.wait_timeout(Duration::from_secs(15)) {
-        Ok(status) => status.map(|_| ())?,
-        Err(_) => {
-            child.kill().ok()?;
-            child.wait().ok()?;
-            return None;
-        }
-    }
+    File::create(&intermediate_path)
+        .map_err(|e| e.to_string())?
+        .write_all(
+            thumbnailer
+                .generate(input_path.as_ref(), None, None)
+                .map_err(|()| "ffmpeg-thumbnailer failed".to_string())?
+                .as_slice(),
+        )
+        .map_err(|e| e.to_string())?;
 
     if let Ok(img) = image::open(&intermediate_path) {
-        fs::remove_file(intermediate_path).ok()?;
-        img.save(save_path).ok()
+        fs::remove_file(intermediate_path).map_err(|e| e.to_string())?;
+        img.save(save_path).map_err(|e| e.to_string())
     } else {
-        None
+        Err("Failed to open the file".to_string())
     }
 }
 
@@ -76,16 +76,31 @@ where
     R: AsRef<Path>,
 {
     let ext = load_path.as_ref().extension().unwrap().to_ascii_lowercase();
-    let mime = file_extension_to_mime(ext.to_str().unwrap());
+
+    let mime = MimeGuess::from_ext(ext.to_str().unwrap()).first_or_octet_stream();
     if mime.type_() == "video" {
-        return generate_video_frame(&load_path, &save_path).is_some();
+        let result = generate_video_frame(&load_path, &save_path);
+
+        match &result {
+            Ok(_) => info!(
+                "Generated thumbnail for video: {}",
+                load_path.as_ref().display()
+            ),
+            Err(error_message) => warn!(
+                "Thumbnail generation failed for video: {}\nCause: {}",
+                load_path.as_ref().display(),
+                error_message
+            ),
+        }
+
+        return result.is_ok();
     }
 
     if ext == "heic" || ext == "heif" {
         return match generate_heic_thumbnail(load_path.as_ref(), save_path.as_ref()) {
             Ok(result) => result,
             Err(e) => {
-                log::error!("Error generating heic/heif thumbnail: {e}");
+                error!("Error generating heic/heif thumbnail: {e}");
                 false
             }
         };
@@ -101,7 +116,7 @@ where
 }
 
 fn read_exif_orientation(path: &Path) -> Option<u32> {
-    let mime = file_extension_to_mime(path.extension()?.to_str()?);
+    let mime = MimeGuess::from_ext(path.extension()?.to_str()?).first_or_octet_stream();
     if mime.type_() != "image" {
         return None;
     }

@@ -1,29 +1,37 @@
-use base64::prelude::*;
-use rand::{Rng, SeedableRng};
-use rand_hc::Hc128Rng;
-use sha2::{Digest, Sha512};
+use argon2::password_hash::SaltString;
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use rand::Rng;
 
-pub fn generate_password() -> String {
-    let mut rng = Hc128Rng::from_entropy();
+pub fn generate_random_password() -> String {
+    let mut rng = rand::thread_rng();
     let mut password = String::new();
-    password.reserve(14);
+    password.reserve(15);
 
-    for _ in 0..14 {
-        let random_char: u8 = rng.gen_range(33..=126);
+    for _ in 0..15 {
+        let random_char: u8 = rng.gen_range(35..=122);
         password.push(random_char as char);
     }
 
     password
 }
 
-pub fn get_hash_from_password(password: &String) -> String {
-    const SALT: &str = "cFp&kB^tRdH4";
+pub fn generate_hash_from_password<T: AsRef<str>>(password: T) -> String {
+    let salt = SaltString::generate(&mut rand::thread_rng());
 
-    let mut hasher = Sha512::new();
+    return Argon2::default()
+        .hash_password(password.as_ref().as_bytes(), &salt)
+        .expect("Failed to hash password")
+        .to_string();
+}
 
-    let input = SALT.to_string() + password;
-    hasher.update(input.as_bytes());
+pub fn validate_credentials<T: AsRef<str>, E: AsRef<str>>(
+    password: T,
+    expected_password_hash: E,
+) -> Result<bool, String> {
+    let expected_password_hash =
+        PasswordHash::new(expected_password_hash.as_ref()).map_err(|e| e.to_string())?;
 
-    let array = hasher.finalize().to_vec();
-    BASE64_STANDARD.encode(array)
+    return Ok(Argon2::default()
+        .verify_password(password.as_ref().as_bytes(), &expected_password_hash)
+        .is_ok());
 }

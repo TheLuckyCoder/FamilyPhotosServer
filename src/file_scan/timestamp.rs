@@ -1,6 +1,6 @@
-use actix_files::file_extension_to_mime;
 use exif::{Field, In, Tag, Value};
 use lazy_static::lazy_static;
+use mime_guess::MimeGuess;
 use regex::Regex;
 use serde::Deserialize;
 use std::fs;
@@ -9,6 +9,7 @@ use std::path::Path;
 use std::str::from_utf8;
 use time::macros::format_description;
 use time::{OffsetDateTime, PrimitiveDateTime};
+use tracing::error;
 
 pub fn get_timestamp_for_path<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
     get_json_timestamp(path.as_ref())
@@ -25,9 +26,15 @@ pub fn get_timestamp_for_path<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTi
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct GooglePhotoTimestamp {
+    timestamp: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct GooglePhotoJsonData {
-    creation_time: Option<u64>,
-    photo_taken_time: Option<u64>,
+    creation_time: Option<GooglePhotoTimestamp>,
+    photo_taken_time: Option<GooglePhotoTimestamp>,
 }
 
 fn get_json_timestamp(path: &Path) -> Option<u64> {
@@ -45,9 +52,12 @@ fn get_json_timestamp(path: &Path) -> Option<u64> {
     let json = serde_json::from_reader::<_, GooglePhotoJsonData>(reader);
 
     match json {
-        Ok(json_data) => json_data.photo_taken_time.or(json_data.creation_time),
+        Ok(json_data) => json_data
+            .photo_taken_time
+            .or(json_data.creation_time)
+            .map(|t| t.timestamp),
         Err(e) => {
-            log::error!("Failed parsing Json ({json_file_name}): {e}");
+            error!("Failed parsing Json ({json_file_name}): {e}");
             None
         }
     }
@@ -79,7 +89,7 @@ fn is_datetime(f: &Field, tag: Tag) -> Option<PrimitiveDateTime> {
 }
 
 fn get_exif_timestamp(path: &Path) -> Option<PrimitiveDateTime> {
-    let mime = file_extension_to_mime(path.extension()?.to_str()?);
+    let mime = MimeGuess::from_ext(path.extension()?.to_str()?).first_or_octet_stream();
     if mime.type_() != "image" {
         return None;
     }
