@@ -1,7 +1,6 @@
 use std::cmp::max;
 use std::fs;
-use std::fs::File;
-use std::io::{BufReader, Write};
+use std::io::BufReader;
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
@@ -45,22 +44,26 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(
         .map(|(before, _after)| before.to_string() + ".jpg")
         .ok_or_else(|| "Failed split path".to_string())?;
 
-    let mut thumbnailer = ffthumb::Thumbnailer::builder()
-        .time(5)
-        .size(THUMBNAIL_TARGET_SIZE)
-        .finalize();
+    let mut command = Command::new("ffmpegthumbnailer");
+    command
+        .arg("-i")
+        .arg(load_path.as_ref())
+        .arg("-o")
+        .arg(Path::new(&intermediate_path))
+        .arg("-s")
+        .arg(THUMBNAIL_TARGET_SIZE.to_string());
 
-    let input_path = load_path.as_ref().to_string_lossy();
+    let mut child = command.spawn().map_err(|e| e.to_string())?;
 
-    File::create(&intermediate_path)
-        .map_err(|e| e.to_string())?
-        .write_all(
-            thumbnailer
-                .generate(input_path.as_ref(), None, None)
-                .map_err(|()| "ffmpeg-thumbnailer failed".to_string())?
-                .as_slice(),
-        )
-        .map_err(|e| e.to_string())?;
+    match child.wait_timeout(Duration::from_secs(15)) {
+        Ok(status) => status
+            .map(|_| ())
+            .ok_or_else(|| "Failed to get exit status".to_string())?,
+        Err(_) => {
+            child.kill().map_err(|e| e.to_string())?;
+            return child.wait().map(|_| ()).map_err(|e| e.to_string());
+        }
+    }
 
     if let Ok(img) = image::open(&intermediate_path) {
         fs::remove_file(intermediate_path).map_err(|e| e.to_string())?;
