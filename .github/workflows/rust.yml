@@ -54,3 +54,9 @@ jobs:
       run: rustup target add $TARGET
     - name: Build Release
       run: cargo build --release --verbose --target $TARGET
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v3.1.2
+      with:
+        name: $TARGET
+        path: target/$TARGET/release/familyphotos
+        retention-days: 30
