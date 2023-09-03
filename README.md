@@ -3,7 +3,7 @@
 An open source self-hosted photo and video server for your family written in Rust.
 
 ## How to set up
-Install all the libraries on your system and setup the PostgresSQL service.
+Install all the libraries on your system and set up the PostgresSQL service.
 
 ### Needed libraries and programs:
 - postgres (for the database)
@@ -64,7 +64,7 @@ Wants=network.target
 After=network.target
 
 [Service]
-WorkingDirectory=/path/to/executable
+WorkingDirectory=/path/to/executable_folder
 ExecStart=familyphotos
 User=...
 Restart=on-failure
