@@ -55,8 +55,8 @@ jobs:
     - name: Build Release
       run: cargo build --release --verbose --target $TARGET
     - name: Upload Build Artifact
-      uses: actions/upload-artifact@v3.1.2
+      uses: actions/upload-artifact@v3
       with:
-        name: $TARGET
-        path: target/$TARGET/release/familyphotos
+        name: ${{ matrix.TARGET }}
+        path: target/${{ matrix.TARGET }}/release/familyphotos
         retention-days: 30
