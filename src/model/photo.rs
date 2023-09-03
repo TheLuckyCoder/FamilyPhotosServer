@@ -79,7 +79,7 @@ impl Photo {
             }
         };
 
-        format!("{}.{}", self.id, special_extension.unwrap_or("webp"))
+        format!("{}.{}", self.id, special_extension.unwrap_or("jpg"))
     }
 }
 

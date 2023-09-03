@@ -7,7 +7,6 @@ Install all the libraries on your system and setup the PostgresSQL service.
 
 ### Needed libraries and programs:
 - postgres (for the database)
-- libwebp (for thumbnail generation)
 - libheif (Optional - thumbnail generation for HEIC/HEIF images)
 - ffmpegthumbnailer (Optional - for video thumbnail generation)
 

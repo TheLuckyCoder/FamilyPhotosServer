@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::ffi::OsStr;
 use std::fs;
 use std::time::Instant;
@@ -28,7 +27,7 @@ impl DataScan {
                 .expect("Could not load users");
 
             let instant = Instant::now();
-            let data_scan = Self::scan(users, app_state.storage.borrow());
+            let data_scan = Self::scan(users, &app_state.storage);
             data_scan.update_database(&app_state).await;
 
             debug!(
@@ -104,8 +103,8 @@ impl DataScan {
     }
 
     async fn update_database(self, app_state: &AppState) {
-        let storage = app_state.storage.borrow();
-        let photos_repo = app_state.photos_repo.borrow();
+        let storage = &app_state.storage;
+        let photos_repo = &app_state.photos_repo;
 
         let existing_photos: Vec<Photo> = photos_repo
             .get_photos()

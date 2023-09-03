@@ -1,11 +1,13 @@
 use std::cmp::max;
 use std::fs;
-use std::io::BufReader;
+use std::fs::File;
+use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
 use exif::{In, Tag};
+use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
 use image::DynamicImage;
 use mime_guess::MimeGuess;
@@ -150,7 +152,21 @@ where
         Some(8) => thumbnail = thumbnail.rotate270(),
         _ => {}
     };
-    thumbnail.save(save_path).is_ok()
+
+    match save_path.as_ref().to_string_lossy().rsplit_once('.') {
+        None => false,
+        Some((_before, after)) => {
+            if after == "jpg" || after == "jpeg" {
+                let file = File::create(save_path).unwrap();
+                let writer = BufWriter::new(file);
+                JpegEncoder::new_with_quality(writer, 70)
+                    .encode_image(&thumbnail)
+                    .is_ok()
+            } else {
+                thumbnail.save(save_path).is_ok()
+            }
+        }
+    }
 }
 
 #[inline]

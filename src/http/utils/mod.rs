@@ -1,10 +1,15 @@
-use crate::http::utils::status_error::StatusError;
 use axum::body::StreamBody;
+use axum::extract::multipart;
 use axum::http::header;
 use axum::response::IntoResponse;
+use futures_util::TryStreamExt;
 use tokio::fs;
+use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
 use tracing::debug;
+
+use crate::http::utils::status_error::StatusError;
+use crate::utils::internal_error;
 
 pub mod status_error;
 
@@ -40,4 +45,19 @@ pub async fn file_to_response(photo_path: &std::path::Path) -> AxumResult<impl I
     ];
 
     Ok((headers, body))
+}
+
+pub async fn write_field_to_file<'a, 'b>(
+    mut field: multipart::Field<'a>,
+    file_path: &'b std::path::Path,
+) -> AxumResult<impl IntoResponse> {
+    let mut file = fs::File::create(file_path)
+        .await
+        .map_err(|_| StatusError::create("Failed creating photo file"))?;
+
+    while let Some(chunk) = field.try_next().await? {
+        file.write_all(&chunk).await.map_err(internal_error)?;
+    }
+
+    Ok(())
 }

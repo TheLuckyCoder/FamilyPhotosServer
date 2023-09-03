@@ -1,11 +1,5 @@
-use crate::http::users_api::{AuthContext, RequireAuth};
-use crate::http::utils::status_error::StatusError;
-use crate::http::utils::{file_to_response, AxumResult};
-use crate::http::AppState;
-use crate::model::photo::{Photo, PhotoBase, PhotoBody};
-use crate::model::user::{User, PUBLIC_USER_ID};
-use crate::thumbnail::generate_thumbnail;
-use crate::utils::{internal_error, primitive_date_time_serde, read_exif};
+use std::string::ToString;
+
 use axum::response::ErrorResponse;
 use axum::{
     extract::Multipart,
@@ -15,11 +9,17 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use futures_util::TryStreamExt;
-use std::string::ToString;
-use tokio::io::AsyncWriteExt;
 use tokio::{fs, task};
 use tracing::{error, info};
+
+use crate::http::users_api::{AuthContext, RequireAuth};
+use crate::http::utils::status_error::StatusError;
+use crate::http::utils::{file_to_response, write_field_to_file, AxumResult};
+use crate::http::AppState;
+use crate::model::photo::{Photo, PhotoBase, PhotoBody};
+use crate::model::user::{User, PUBLIC_USER_ID};
+use crate::thumbnail::generate_thumbnail;
+use crate::utils::{internal_error, primitive_date_time_serde, read_exif};
 
 pub fn router(app_state: AppState) -> Router {
     let user_router = Router::new()
@@ -74,7 +74,7 @@ async fn base_upload_photo(
     query: UploadData,
     mut payload: Multipart,
 ) -> AxumResult<impl IntoResponse> {
-    let mut field = payload
+    let field = payload
         .next_field()
         .await?
         .ok_or_else(|| StatusError::new_status("Multipart is empty", StatusCode::BAD_REQUEST))?;
@@ -98,17 +98,23 @@ async fn base_upload_photo(
 
     info!("Uploading file to {}", photo_path.to_string_lossy());
 
-    let mut file = fs::File::create(photo_path)
-        .await
-        .map_err(|_| StatusError::create("Failed creating photo file"))?;
-
-    while let Some(chunk) = field.try_next().await? {
-        file.write_all(&chunk).await.map_err(internal_error)?;
+    match write_field_to_file(field, &photo_path).await {
+        Ok(_) => {}
+        Err(e) => {
+            // Upload failed, delete the file
+            let _ = fs::remove_file(photo_path).await;
+            return Err(e);
+        }
     }
 
-    let photo = photos_repo.insert_photo(&new_photo_body).await?;
-
-    Ok(Json(photo))
+    match photos_repo.insert_photo(&new_photo_body).await {
+        Ok(photo) => Ok(Json(photo)),
+        Err(e) => {
+            // Insertion failed, delete the file
+            let _ = fs::remove_file(photo_path).await;
+            Err(e)
+        }
+    }
 }
 
 // region Specific User

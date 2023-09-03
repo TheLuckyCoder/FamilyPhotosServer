@@ -29,7 +29,7 @@ pub fn router(pool: PgPool, app_state: AppState, session_secret: &[u8]) -> Route
     let auth_layer = AuthLayer::new(user_store, session_secret);
 
     Router::new()
-        .route("/", get(|| async { StatusCode::OK }))
+        .route("/", get(|| async { "Hello, World!" }))
         .route("/ping", get(|| async { StatusCode::OK }))
         .merge(users_api::router(app_state.users_repo.clone()))
         .merge(photos_api::router(app_state))
@@ -41,7 +41,7 @@ pub fn router(pool: PgPool, app_state: AppState, session_secret: &[u8]) -> Route
         .layer(CorsLayer::new().allow_origin(cors::Any))
         .layer(auth_layer)
         .layer(session_layer)
-        .layer(DefaultBodyLimit::max(1024 * 1024 * 1024))
+        .layer(DefaultBodyLimit::max(1024 * 1024 * 1024)) // 1GB
 }
 
 #[derive(Clone)]
