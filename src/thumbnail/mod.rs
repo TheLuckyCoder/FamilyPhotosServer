@@ -1,11 +1,14 @@
-pub use generate::*;
 use rayon::prelude::*;
+
+use generate::*;
+pub use manager::*;
 
 use crate::http::AppState;
 use crate::model::photo::{Photo, PhotoBase};
 use crate::utils::file_storage::FileStorage;
 
 mod generate;
+mod manager;
 
 pub async fn generate_all_foreground(app_state: &AppState) -> Result<(), String> {
     let photos: Vec<Photo> = app_state

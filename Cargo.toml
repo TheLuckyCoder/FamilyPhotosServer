@@ -6,7 +6,7 @@ edition = "2021"
 
 [profile.release]
 incremental = true
-lto = "thin"
+lto = true
 
 [dependencies]
 # Async Runtime
@@ -44,7 +44,7 @@ regex = "1"
 wait-timeout = "0.2"
 time = { version = "0.3", features = ["macros", "parsing"] }
 dotenvy = "0.15"
-walkdir = "2.3"
+walkdir = "2.4"
 mime_guess = "2"
 
 # Crypto

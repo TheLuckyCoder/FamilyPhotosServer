@@ -14,7 +14,6 @@ use tracing_subscriber::EnvFilter;
 
 use crate::http::AppState;
 use crate::model::user::{User, PUBLIC_USER_ID};
-use crate::repo::photos_repo::PhotosRepository;
 use crate::repo::users_repo::UsersRepository;
 use crate::utils::env_reader::EnvVariables;
 use crate::utils::file_storage::FileStorage;
@@ -55,11 +54,10 @@ async fn main() -> Result<(), String> {
         .await
         .expect("Error building the connection pool");
 
-    let app_state = AppState {
-        storage: FileStorage::new(vars.storage_path, vars.thumbnail_path),
-        users_repo: UsersRepository::new(pool.clone()),
-        photos_repo: PhotosRepository::new(pool.clone()),
-    };
+    let app_state = AppState::new(
+        pool.clone(),
+        FileStorage::new(vars.storage_path, vars.thumbnail_path),
+    );
 
     // Create default public user
     create_public_user(&app_state.users_repo).await?;

@@ -1,8 +1,3 @@
-use crate::model::user::User;
-use crate::repo::photos_repo::PhotosRepository;
-use crate::repo::session_repo::SessionRepository;
-use crate::repo::users_repo::UsersRepository;
-use crate::utils::file_storage::FileStorage;
 use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
 use axum::routing::get;
@@ -14,6 +9,13 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{cors, trace};
 use tracing::Level;
+
+use crate::model::user::User;
+use crate::repo::photos_repo::PhotosRepository;
+use crate::repo::session_repo::SessionRepository;
+use crate::repo::users_repo::UsersRepository;
+use crate::thumbnail::ThumbnailManager;
+use crate::utils::file_storage::FileStorage;
 
 mod photos_api;
 mod users_api;
@@ -49,4 +51,16 @@ pub struct AppState {
     pub storage: FileStorage,
     pub users_repo: UsersRepository,
     pub photos_repo: PhotosRepository,
+    pub thumbnail_manager: ThumbnailManager,
+}
+
+impl AppState {
+    pub fn new(pool: PgPool, storage: FileStorage) -> Self {
+        Self {
+            storage,
+            users_repo: UsersRepository::new(pool.clone()),
+            photos_repo: PhotosRepository::new(pool),
+            thumbnail_manager: ThumbnailManager::default(),
+        }
+    }
 }

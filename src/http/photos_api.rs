@@ -18,7 +18,6 @@ use crate::http::utils::{file_to_response, write_field_to_file, AxumResult};
 use crate::http::AppState;
 use crate::model::photo::{Photo, PhotoBase, PhotoBody};
 use crate::model::user::{User, PUBLIC_USER_ID};
-use crate::thumbnail::generate_thumbnail;
 use crate::utils::{internal_error, primitive_date_time_serde, read_exif};
 
 pub fn router(app_state: AppState) -> Router {
@@ -46,7 +45,7 @@ pub fn router(app_state: AppState) -> Router {
 
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct UploadData {
+struct UploadData {
     #[serde(with = "primitive_date_time_serde")]
     time_created: time::PrimitiveDateTime,
     file_size: usize,
@@ -58,7 +57,7 @@ fn check_has_access(user: &User, photo: &Photo) -> Result<(), ErrorResponse> {
         Ok(())
     } else {
         Err(StatusError::new_status(
-            "YOu don't have access to this resource",
+            "You don't have access to this resource",
             StatusCode::FORBIDDEN,
         ))
     }
@@ -69,6 +68,7 @@ async fn base_upload_photo(
         storage,
         users_repo: _users_repo,
         photos_repo,
+        thumbnail_manager,
     }: AppState,
     user_name: String,
     query: UploadData,
@@ -108,7 +108,19 @@ async fn base_upload_photo(
     }
 
     match photos_repo.insert_photo(&new_photo_body).await {
-        Ok(photo) => Ok(Json(photo)),
+        Ok(photo) => {
+            let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
+            let photo_id = photo.id;
+
+            // Start generating the thumbnail
+            task::spawn(async move {
+                thumbnail_manager
+                    .request_thumbnail(photo_id, photo_path, thumbnail_path)
+                    .await;
+            });
+
+            Ok(Json(photo))
+        }
         Err(e) => {
             // Insertion failed, delete the file
             let _ = fs::remove_file(photo_path).await;
@@ -119,7 +131,7 @@ async fn base_upload_photo(
 
 // region Specific User
 
-pub async fn photos_list(
+async fn photos_list(
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> AxumResult<impl IntoResponse> {
@@ -128,7 +140,7 @@ pub async fn photos_list(
     Ok(Json(state.photos_repo.get_photos_by_user(user.id).await?))
 }
 
-pub async fn thumbnail_photo(
+async fn thumbnail_photo(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
     auth: AuthContext,
@@ -137,6 +149,7 @@ pub async fn thumbnail_photo(
         storage,
         users_repo: _users_repo,
         photos_repo,
+        thumbnail_manager,
     } = state;
 
     let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
@@ -146,13 +159,10 @@ pub async fn thumbnail_photo(
 
     let photo_path = storage.resolve_photo(photo.partial_path());
     let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
-    let photo_path_clone = photo_path.clone();
-    let thumbnail_path_clone = thumbnail_path.clone();
 
-    let thumbnail_generated = thumbnail_path.exists()
-        || task::spawn_blocking(move || generate_thumbnail(photo_path_clone, thumbnail_path_clone))
-            .await
-            .map_err(internal_error)?;
+    let thumbnail_generated = thumbnail_manager
+        .request_thumbnail(photo_id, photo_path.clone(), thumbnail_path.clone())
+        .await;
 
     let path = if thumbnail_generated {
         thumbnail_path
@@ -168,7 +178,7 @@ pub async fn thumbnail_photo(
     file_to_response(&path).await
 }
 
-pub async fn download_photo(
+async fn download_photo(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
     auth: AuthContext,
@@ -183,7 +193,7 @@ pub async fn download_photo(
     file_to_response(&photo_path).await
 }
 
-pub async fn get_photo_exif(
+async fn get_photo_exif(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
     auth: AuthContext,
@@ -205,7 +215,7 @@ pub async fn get_photo_exif(
     }
 }
 
-pub async fn upload_photo(
+async fn upload_photo(
     State(state): State<AppState>,
     Query(query): Query<UploadData>,
     auth: AuthContext,
@@ -216,7 +226,7 @@ pub async fn upload_photo(
     base_upload_photo(state, user.id, query, payload).await
 }
 
-pub async fn delete_photo(
+async fn delete_photo(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
     auth: AuthContext,
@@ -239,12 +249,12 @@ pub async fn delete_photo(
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ChangeLocationQuery {
+struct ChangeLocationQuery {
     target_user_name: Option<String>,
     target_folder_name: Option<String>,
 }
 
-pub async fn change_photo_location(
+async fn change_photo_location(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
     Query(query): Query<ChangeLocationQuery>,
@@ -294,13 +304,13 @@ pub async fn change_photo_location(
 
 // region Public
 
-pub async fn public_photos_list(State(state): State<AppState>) -> AxumResult<impl IntoResponse> {
+async fn public_photos_list(State(state): State<AppState>) -> AxumResult<impl IntoResponse> {
     Ok(Json(
         state.photos_repo.get_photos_by_user(PUBLIC_USER_ID).await?,
     ))
 }
 
-pub async fn public_upload_photo(
+async fn public_upload_photo(
     State(state): State<AppState>,
     Query(query): Query<UploadData>,
     payload: Multipart,

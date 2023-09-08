@@ -25,7 +25,7 @@ pub fn router(users_repo: UsersRepository) -> Router {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LoginUser {
+struct LoginUser {
     pub user_id: String,
     pub password: String,
 }

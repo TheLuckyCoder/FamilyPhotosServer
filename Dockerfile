@@ -4,18 +4,17 @@ FROM rust:1.72.0-bookworm as builder
 RUN USER=root cargo new --bin familyphotos
 WORKDIR /familyphotos
 
-# copy over your manifests
+# copy manifests
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
 
-# this build step will cache your dependencies
+# cache your dependencies
 RUN cargo build --release
 RUN rm src/*.rs
 
-# copy your source tree
+# copy everything else
 COPY . .
 
-# build for release
 RUN rm ./target/release/deps/familyphotos*
 RUN cargo build --release
 
