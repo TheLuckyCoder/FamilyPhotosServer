@@ -20,7 +20,7 @@ RUN cargo build --release
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
 	heif-thumbnailer ffmpegthumbnailer && \
 	rm -rf /var/lib/apt/lists/*
 
