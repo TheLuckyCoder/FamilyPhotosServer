@@ -1,4 +1,4 @@
-FROM rust:1.72.0-bookworm as builder
+FROM rust:1.72.1-bookworm as builder
 
 # create a new empty shell project
 RUN USER=root cargo new --bin familyphotos
