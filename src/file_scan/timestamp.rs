@@ -27,7 +27,7 @@ pub fn get_timestamp_for_path<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTi
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GooglePhotoTimestamp {
-    timestamp: u64,
+    timestamp: String,
 }
 
 #[derive(Deserialize)]
@@ -35,6 +35,18 @@ struct GooglePhotoTimestamp {
 struct GooglePhotoJsonData {
     creation_time: Option<GooglePhotoTimestamp>,
     photo_taken_time: Option<GooglePhotoTimestamp>,
+}
+
+impl GooglePhotoJsonData {
+    fn u64_creation_time(&self) -> Option<u64> {
+        let time = self.creation_time.as_ref()?;
+        time.timestamp.parse().ok()
+    }
+
+    fn u64_photo_taken_time(&self) -> Option<u64> {
+        let time = self.photo_taken_time.as_ref()?;
+        time.timestamp.parse().ok()
+    }
 }
 
 fn get_json_timestamp(path: &Path) -> Option<u64> {
@@ -53,9 +65,8 @@ fn get_json_timestamp(path: &Path) -> Option<u64> {
 
     match json {
         Ok(json_data) => json_data
-            .photo_taken_time
-            .or(json_data.creation_time)
-            .map(|t| t.timestamp),
+            .u64_photo_taken_time()
+            .or(json_data.u64_creation_time()),
         Err(e) => {
             error!("Failed parsing Json ({json_file_name}): {e}");
             None
@@ -202,5 +213,23 @@ mod tests {
             get_regex_timestamp("random-IMG_2016-09-22-160430 (5).jpg"),
             expected_date
         );
+    }
+
+    #[test]
+    fn json_parsing() {
+        let json = r#"{
+            "creationTime": {
+                "timestamp": "1437327811",
+                "formatted": "19 iul. 2015, 17:43:31 UTC"
+            },
+            "photoTakenTime": {
+                "timestamp": "1435786122",
+                "formatted": "1 iul. 2015, 21:28:42 UTC"
+            }
+        }"#;
+
+        let data: GooglePhotoJsonData = serde_json::from_str(json).unwrap();
+        assert_eq!(data.u64_creation_time(), Some(1437327811));
+        assert_eq!(data.u64_photo_taken_time(), Some(1435786122));
     }
 }
