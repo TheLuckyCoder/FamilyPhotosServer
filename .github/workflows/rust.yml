@@ -28,7 +28,7 @@ jobs:
       OS: ${{ matrix.OS }}
 
     steps:
-    - uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4
+    - uses: actions/checkout@v4
     - name: Cargo cache
       uses: actions/cache@v3
       with:
