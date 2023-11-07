@@ -1,6 +1,5 @@
-use axum_login::secrecy::SecretVec;
 use axum_login::AuthUser;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct User {
@@ -16,22 +15,31 @@ pub struct SimpleUser {
     pub display_name: String,
 }
 
-impl SimpleUser {
-    pub fn from_user(user: &User) -> Self {
-        SimpleUser {
-            user_id: user.id.clone(),
-            display_name: user.name.clone(),
+impl From<User> for SimpleUser {
+    fn from(value: User) -> Self {
+        Self {
+            user_id: value.id,
+            display_name: value.name,
         }
     }
 }
 
-impl AuthUser<String> for User {
-    fn get_id(&self) -> String {
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserCredentials {
+    pub user_id: String,
+    pub password: String,
+}
+
+impl AuthUser for User {
+    type Id = String;
+
+    fn id(&self) -> Self::Id {
         self.id.clone()
     }
 
-    fn get_password_hash(&self) -> SecretVec<u8> {
-        SecretVec::new(self.password_hash.clone().into())
+    fn session_auth_hash(&self) -> &[u8] {
+        self.password_hash.as_bytes()
     }
 }
 

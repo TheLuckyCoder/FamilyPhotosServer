@@ -43,9 +43,9 @@ async fn main() -> Result<(), String> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    let mut connect_options = PgConnectOptions::from_str(&vars.database_url)
-        .expect("Failed to deserialize connection string");
-    connect_options.log_statements(LevelFilter::Trace);
+    let connect_options = PgConnectOptions::from_str(&vars.database_url)
+        .expect("Failed to deserialize connection string")
+        .log_statements(LevelFilter::Trace);
 
     // Database pool and app state
     let pool = PgPoolOptions::new()
@@ -82,8 +82,7 @@ async fn main() -> Result<(), String> {
 
     info!("Server listening on port {}", vars.server_port);
 
-    let http_service =
-        http::router(pool, app_state, vars.session_secret.as_bytes()).into_make_service();
+    let http_service = http::router(pool, app_state).into_make_service();
     let addr = SocketAddr::from(([127, 0, 0, 1], vars.server_port));
 
     if vars.use_https {

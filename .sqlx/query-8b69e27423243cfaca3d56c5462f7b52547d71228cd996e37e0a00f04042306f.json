@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from photos where id = (select * from UNNEST($1::int8[]))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8b69e27423243cfaca3d56c5462f7b52547d71228cd996e37e0a00f04042306f"
+}

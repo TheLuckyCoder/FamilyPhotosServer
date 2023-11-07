@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update photos set user_id = $2, name = $3, created_at = $4, file_size = $5, folder = $6 where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Timestamp",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2d751f84e68c2962b06a5f69426079e517a0d0236cde9f26b35a60e8878c36fe"
+}

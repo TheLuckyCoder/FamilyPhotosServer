@@ -1,5 +1,9 @@
-use crate::model::user::User;
+use crate::model::user::{User, UserCredentials};
+use crate::utils::password_hash::validate_credentials;
+use async_trait::async_trait;
+use axum_login::{AuthnBackend, UserId};
 use sqlx::{query, query_as, Error, PgPool};
+use tracing::error;
 
 #[derive(Clone)]
 pub struct UsersRepository {
@@ -45,5 +49,31 @@ impl UsersRepository {
             .execute(&self.pool)
             .await
             .map(|_| ())
+    }
+}
+
+#[async_trait]
+impl AuthnBackend for UsersRepository {
+    type User = User;
+    type Credentials = UserCredentials;
+    type Error = Error;
+
+    async fn authenticate(
+        &self,
+        creds: Self::Credentials,
+    ) -> Result<Option<Self::User>, Self::Error> {
+        let user = self.get_user(creds.user_id).await;
+
+        Ok(user.filter(|user| {
+            validate_credentials(creds.password, &user.password_hash)
+                .map_err(|e| {
+                    error!("Failed to validate credentials: {e}");
+                })
+                .unwrap_or(false)
+        }))
+    }
+
+    async fn get_user(&self, user_id: &UserId<Self>) -> Result<Option<Self::User>, Self::Error> {
+        Ok(self.get_user(user_id).await)
     }
 }

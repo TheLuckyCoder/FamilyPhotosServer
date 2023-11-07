@@ -9,11 +9,14 @@ use tokio_util::io::ReaderStream;
 use tracing::debug;
 
 use crate::http::utils::status_error::StatusError;
+use crate::repo::users_repo::UsersRepository;
 use crate::utils::internal_error;
 
 pub mod status_error;
 
 pub type AxumResult<T> = axum::response::Result<T>;
+
+pub type AuthSession = axum_login::AuthSession<UsersRepository>;
 
 pub async fn file_to_response(photo_path: &std::path::Path) -> AxumResult<impl IntoResponse> {
     let mime = mime_guess::from_path(photo_path)

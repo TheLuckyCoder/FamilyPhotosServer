@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from session",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "e864ae527ab535ca32cbc15b5177080954fb45f60cb5f819937ea20fc57b3fbb"
+}

@@ -12,9 +12,8 @@ use axum::{
 use tokio::{fs, task};
 use tracing::{error, info};
 
-use crate::http::users_api::{AuthContext, RequireAuth};
 use crate::http::utils::status_error::StatusError;
-use crate::http::utils::{file_to_response, write_field_to_file, AxumResult};
+use crate::http::utils::{file_to_response, write_field_to_file, AuthSession, AxumResult};
 use crate::http::AppState;
 use crate::model::photo::{Photo, PhotoBase, PhotoBody};
 use crate::model::user::{User, PUBLIC_USER_ID};
@@ -29,14 +28,12 @@ pub fn router(app_state: AppState) -> Router {
         .route("/upload", post(upload_photo))
         .route("/delete/:photo_id", delete(delete_photo))
         .route("/change_location/:photo_id", post(change_photo_location))
-        .with_state(app_state.clone())
-        .route_layer(RequireAuth::login());
+        .with_state(app_state.clone());
 
     let public_router = Router::new()
         .route("/", get(public_photos_list))
         .route("/upload", post(public_upload_photo))
-        .with_state(app_state)
-        .route_layer(RequireAuth::login());
+        .with_state(app_state);
 
     Router::new()
         .nest("/photos", user_router)
@@ -52,9 +49,11 @@ struct UploadData {
     folder_name: Option<String>,
 }
 
-fn check_has_access(user: &User, photo: &Photo) -> Result<(), ErrorResponse> {
+fn check_has_access(user: Option<User>, photo: &Photo) -> Result<User, ErrorResponse> {
+    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
+
     if photo.user_id() == &user.id || photo.user_id() == PUBLIC_USER_ID {
-        Ok(())
+        Ok(user)
     } else {
         Err(StatusError::new_status(
             "You don't have access to this resource",
@@ -133,9 +132,9 @@ async fn base_upload_photo(
 
 async fn photos_list(
     State(state): State<AppState>,
-    auth: AuthContext,
+    auth: AuthSession,
 ) -> AxumResult<impl IntoResponse> {
-    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
+    let user = auth.user.ok_or(StatusCode::BAD_REQUEST)?;
 
     Ok(Json(state.photos_repo.get_photos_by_user(user.id).await?))
 }
@@ -143,7 +142,7 @@ async fn photos_list(
 async fn thumbnail_photo(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
-    auth: AuthContext,
+    auth: AuthSession,
 ) -> impl IntoResponse {
     let AppState {
         storage,
@@ -152,10 +151,8 @@ async fn thumbnail_photo(
         thumbnail_manager,
     } = state;
 
-    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = photos_repo.get_photo(photo_id).await?;
-
-    check_has_access(&user, &photo)?;
+    check_has_access(auth.user, &photo)?;
 
     let photo_path = storage.resolve_photo(photo.partial_path());
     let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
@@ -181,12 +178,10 @@ async fn thumbnail_photo(
 async fn download_photo(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
-    auth: AuthContext,
+    auth: AuthSession,
 ) -> impl IntoResponse {
-    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
-
-    check_has_access(&user, &photo)?;
+    check_has_access(auth.user, &photo)?;
 
     let photo_path = state.storage.resolve_photo(photo.partial_path());
 
@@ -196,12 +191,10 @@ async fn download_photo(
 async fn get_photo_exif(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
-    auth: AuthContext,
+    auth: AuthSession,
 ) -> impl IntoResponse {
-    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
-
-    check_has_access(&user, &photo)?;
+    check_has_access(auth.user, &photo)?;
 
     let path = state.storage.resolve_photo(photo.partial_path());
     let exif = task::spawn_blocking(move || read_exif(path)).await.unwrap();
@@ -218,10 +211,10 @@ async fn get_photo_exif(
 async fn upload_photo(
     State(state): State<AppState>,
     Query(query): Query<UploadData>,
-    auth: AuthContext,
+    auth: AuthSession,
     payload: Multipart,
 ) -> impl IntoResponse {
-    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
+    let user = auth.user.ok_or(StatusCode::UNAUTHORIZED)?;
 
     base_upload_photo(state, user.id, query, payload).await
 }
@@ -229,12 +222,10 @@ async fn upload_photo(
 async fn delete_photo(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
-    auth: AuthContext,
+    auth: AuthSession,
 ) -> impl IntoResponse {
-    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
-
-    check_has_access(&user, &photo)?;
+    check_has_access(auth.user, &photo)?;
 
     let _ = state.storage.delete_file(photo.partial_thumbnail_path());
 
@@ -258,13 +249,11 @@ async fn change_photo_location(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
     Query(query): Query<ChangeLocationQuery>,
-    auth: AuthContext,
+    auth: AuthSession,
 ) -> AxumResult<impl IntoResponse> {
     let storage = state.storage;
-    let user = auth.current_user.ok_or(StatusCode::BAD_REQUEST)?;
     let photo = state.photos_repo.get_photo(photo_id).await?;
-
-    check_has_access(&user, &photo)?;
+    check_has_access(auth.user, &photo)?;
 
     let target_user_name = query.target_user_name.unwrap_or(PUBLIC_USER_ID.to_string());
 
@@ -304,7 +293,12 @@ async fn change_photo_location(
 
 // region Public
 
-async fn public_photos_list(State(state): State<AppState>) -> AxumResult<impl IntoResponse> {
+async fn public_photos_list(
+    State(state): State<AppState>,
+    auth: AuthSession,
+) -> AxumResult<impl IntoResponse> {
+    auth.user.ok_or(StatusCode::UNAUTHORIZED)?;
+
     Ok(Json(
         state.photos_repo.get_photos_by_user(PUBLIC_USER_ID).await?,
     ))
@@ -313,8 +307,11 @@ async fn public_photos_list(State(state): State<AppState>) -> AxumResult<impl In
 async fn public_upload_photo(
     State(state): State<AppState>,
     Query(query): Query<UploadData>,
+    auth: AuthSession,
     payload: Multipart,
 ) -> impl IntoResponse {
+    auth.user.ok_or(StatusCode::UNAUTHORIZED)?;
+
     base_upload_photo(state, PUBLIC_USER_ID.to_string(), query, payload).await
 }
 
