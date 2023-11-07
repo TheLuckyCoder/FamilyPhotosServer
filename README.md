@@ -17,9 +17,8 @@ The server can be configured using a .env file located in the same folder as the
 Variables in bold **must** be specified.
 - **SERVER_PORT**: The port the server should listen on
 - **DATABASE_URL** (eg: postgres://username:password@localhost/database?sslmode=disable)
-- **SESSION_SECRET**: Used to hash the session cookie with. Must be at least 64 bytes long (64 chars)
 - **STORAGE_PATH**: The path to the folder where the photos will be stored
-- THUMBNAIL_PATH: The path to the folder where the thumbnails of the photos will be generated (default: in STORAGE_PATH/.thumbnail)
+- THUMBNAIL_PATH: Alternative storage path for photo thumbnails (default: in STORAGE_PATH/.thumbnail)
 - USE_HTTPS: Run the web server in HTTPS Mode, recommended if you don't have a reverse proxy (default: false)
 - SSL_PRIVATE_KEY_PATH: expects a PKCS8 file path (default: none)
 - SSL_CERTS_PATH (default: none)
@@ -53,8 +52,10 @@ The server will generate the following folder structure in the STORAGE_PATH:
 ```
 
 ## Running the server
+
 To run the server, simply execute the binary for your chosen architecture.<br>
 
+### Systemd
 If you want the server to run in the background and automatically start on boot you might want to try setting up service in systemd such as below.<br>
 Place the following file in `/etc/systemd/system/familyphotos.service`
 ```
@@ -79,3 +80,6 @@ Now run the following to reload the systemd daemon and enable the service:
 sudo systemctl daemon-reload
 sudo systemctl enable --now familyphotos
 ```
+
+### Docker
+Docker alternatively you can build and run the server using the Dockerfile
