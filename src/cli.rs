@@ -1,10 +1,8 @@
-use crate::{file_scan, thumbnail};
-use clap::{Parser, Subcommand};
-use sqlx::PgPool;
-
 use crate::http::AppState;
 use crate::model::user::User;
 use crate::utils::password_hash::{generate_hash_from_password, generate_random_password};
+use crate::{file_scan, thumbnail};
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -21,9 +19,6 @@ enum Commands {
     #[command(subcommand)]
     /// Manage Photos
     Photos(PhotosCommand),
-    #[command(subcommand)]
-    /// Manage Sessions
-    Sessions(SessionsCommand),
 }
 
 #[derive(Subcommand)]
@@ -66,7 +61,7 @@ enum SessionsCommand {
 /**
  * @return true if the program should exit
  */
-pub async fn run_cli(pool: &PgPool, state: &AppState) -> bool {
+pub async fn run_cli(state: &AppState) -> bool {
     let cli = Cli::parse();
 
     let cmd = cli.commands;
@@ -77,7 +72,6 @@ pub async fn run_cli(pool: &PgPool, state: &AppState) -> bool {
     match cmd.unwrap() {
         Commands::Users(command) => user_commands(state, command).await,
         Commands::Photos(command) => photos_commands(state, command).await,
-        Commands::Sessions(command) => sessions_commands(pool, command).await,
     };
 
     true
@@ -164,13 +158,4 @@ async fn photos_commands(state: &AppState, command: PhotosCommand) {
             }
         }
     }
-}
-
-async fn sessions_commands(pool: &PgPool, command: SessionsCommand) {
-    match command {
-        SessionsCommand::Clear => sqlx::query!("delete from session")
-            .execute(pool)
-            .await
-            .expect("Failed to clear sessions"),
-    };
 }

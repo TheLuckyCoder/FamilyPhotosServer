@@ -21,7 +21,7 @@ async fn login(
     let valid_user = auth
         .authenticate(login_user)
         .await
-        .map_err(|_| StatusError::create("Failed to validate credentials"))?;
+        .map_err(|e| StatusError::create(format!("Failed to validate credentials: {e}")))?;
 
     let user = match valid_user {
         None => {
