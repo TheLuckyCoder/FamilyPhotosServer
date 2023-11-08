@@ -1,5 +1,5 @@
 use argon2::password_hash::SaltString;
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::{password_hash, Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use rand::Rng;
 
 pub fn generate_random_password() -> String {
@@ -27,9 +27,8 @@ pub fn generate_hash_from_password<T: AsRef<str>>(password: T) -> String {
 pub fn validate_credentials<T: AsRef<str>, E: AsRef<str>>(
     password: T,
     expected_password_hash: E,
-) -> Result<bool, String> {
-    let expected_password_hash =
-        PasswordHash::new(expected_password_hash.as_ref()).map_err(|e| e.to_string())?;
+) -> Result<bool, password_hash::Error> {
+    let expected_password_hash = PasswordHash::new(expected_password_hash.as_ref())?;
 
     return Ok(Argon2::default()
         .verify_password(password.as_ref().as_bytes(), &expected_password_hash)

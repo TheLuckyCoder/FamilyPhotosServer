@@ -63,7 +63,7 @@ async fn main() -> Result<(), String> {
     create_public_user(&app_state.users_repo).await?;
 
     // Run the CLI
-    if cli::run_cli(&pool, &app_state).await {
+    if cli::run_cli(&app_state).await {
         return Ok(());
     }
 
