@@ -2,11 +2,13 @@ ARG TARGET_ARCH=x86_64-unknown-linux-musl
 
 FROM rust:1.73-bookworm as builder
 
+ARG TARGET_ARCH
+
 RUN apt-get update && \
     apt-get install -y \
     musl-tools
 
-RUN rustup target add ${TARGET_ARCH}
+RUN rustup target add $TARGET_ARCH
 
 # create a new empty shell project
 RUN USER=root cargo new --bin familyphotos
@@ -27,6 +29,8 @@ RUN rm ./target/${TARGET_ARCH}/release/deps/familyphotos*
 RUN cargo build --release --target ${TARGET_ARCH}
 
 FROM alpine:3.18
+
+ARG TARGET_ARCH
 
 RUN apk add --no-cache heif-thumbnailer ffmpegthumbnailer
 
