@@ -22,8 +22,7 @@ mod photos_api;
 mod users_api;
 mod utils;
 
-pub fn router(pool: PgPool, app_state: AppState) -> Router {
-    let session_store = PostgresStore::new(pool.clone());
+pub fn router(app_state: AppState, session_store: PostgresStore) -> Router {
     let session_layer = SessionManagerLayer::new(session_store)
         .with_expiry(Expiry::OnInactivity(Duration::days(30)));
 

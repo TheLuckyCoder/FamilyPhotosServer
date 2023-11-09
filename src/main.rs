@@ -6,6 +6,7 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::ConnectOptions;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
+use tower_sessions::PostgresStore;
 use tracing::log::LevelFilter;
 use tracing::{error, info};
 use tracing_subscriber::layer::SubscriberExt;
@@ -59,6 +60,12 @@ async fn main() -> Result<(), String> {
         FileStorage::new(vars.storage_path, vars.thumbnail_path),
     );
 
+    let session_store = PostgresStore::new(pool);
+    session_store
+        .migrate()
+        .await
+        .expect("Failed to run schema migration for authentication");
+
     // Create default public user
     create_public_user(&app_state.users_repo).await?;
 
@@ -82,7 +89,7 @@ async fn main() -> Result<(), String> {
 
     info!("Server listening on port {}", vars.server_port);
 
-    let http_service = http::router(pool, app_state).into_make_service();
+    let http_service = http::router(app_state, session_store).into_make_service();
     let addr = SocketAddr::from(([127, 0, 0, 1], vars.server_port));
 
     if vars.use_https {
