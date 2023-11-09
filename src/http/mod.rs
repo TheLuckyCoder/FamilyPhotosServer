@@ -29,7 +29,7 @@ pub fn router(app_state: AppState, session_store: PostgresStore) -> Router {
     let auth_service = ServiceBuilder::new()
         .layer(HandleErrorLayer::new(|e: BoxError| async move {
             error!("Auth error: {e}");
-            StatusCode::BAD_REQUEST
+            StatusCode::INTERNAL_SERVER_ERROR
         }))
         .layer(AuthManagerLayer::new(
             app_state.users_repo.clone(),
