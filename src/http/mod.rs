@@ -11,7 +11,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{cors, trace};
 use tower_sessions::{Expiry, PostgresStore, SessionManagerLayer};
-use tracing::Level;
+use tracing::{error, Level};
 
 use crate::repo::photos_repo::PhotosRepository;
 use crate::repo::users_repo::UsersRepository;
@@ -28,7 +28,8 @@ pub fn router(pool: PgPool, app_state: AppState) -> Router {
         .with_expiry(Expiry::OnInactivity(Duration::days(30)));
 
     let auth_service = ServiceBuilder::new()
-        .layer(HandleErrorLayer::new(|_: BoxError| async {
+        .layer(HandleErrorLayer::new(|e: BoxError| async move {
+            error!("Auth error: {e}");
             StatusCode::BAD_REQUEST
         }))
         .layer(AuthManagerLayer::new(
