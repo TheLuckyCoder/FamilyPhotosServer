@@ -3,7 +3,7 @@ use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{BoxError, Router};
-use axum_login::AuthManagerLayer;
+use axum_login::AuthManagerLayerBuilder;
 use sqlx::PgPool;
 use time::Duration;
 use tower::ServiceBuilder;
@@ -31,10 +31,7 @@ pub fn router(app_state: AppState, session_store: PostgresStore) -> Router {
             error!("Auth error: {e}");
             StatusCode::INTERNAL_SERVER_ERROR
         }))
-        .layer(AuthManagerLayer::new(
-            app_state.users_repo.clone(),
-            session_layer,
-        ));
+        .layer(AuthManagerLayerBuilder::new(app_state.users_repo.clone(), session_layer).build());
 
     Router::new()
         .route("/", get(|| async { "Hello, World!" }))
