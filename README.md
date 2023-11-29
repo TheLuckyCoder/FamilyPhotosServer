@@ -19,9 +19,6 @@ Variables in bold **must** be specified.
 - **DATABASE_URL** (eg: postgres://username:password@localhost/database?sslmode=disable)
 - **STORAGE_PATH**: The path to the folder where the photos will be stored
 - THUMBNAIL_PATH: Alternative storage path for photo thumbnails (default: in STORAGE_PATH/.thumbnail)
-- USE_HTTPS: Run the web server in HTTPS Mode, recommended if you don't have a reverse proxy (default: false)
-- SSL_PRIVATE_KEY_PATH: expects a PKCS8 file path (default: none)
-- SSL_CERTS_PATH (default: none)
 - SCAN_NEW_FILES: Scan the storage for external changes at startup (default: true)
 - GENERATE_THUMBNAILS_BACKGROUND: Generate thumbnails for all photos on background thread (on startup), as opposed to only lazily generating when needed (default: false)
 - RUST_LOG: Specifies the Rust log level (default: none)

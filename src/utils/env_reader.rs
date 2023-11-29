@@ -16,9 +16,6 @@ pub struct EnvVariables {
     pub thumbnail_path: Option<String>,
     pub scan_new_files: bool,
     pub generate_thumbnails_background: bool,
-    pub use_https: bool,
-    pub ssl_private_key_path: Option<String>,
-    pub ssl_certs_path: Option<String>,
 }
 
 impl EnvVariables {
@@ -43,9 +40,6 @@ impl EnvVariables {
                 "GENERATE_THUMBNAILS_BACKGROUND",
                 false,
             ),
-            use_https: optional_env_var("USE_HTTPS", false),
-            ssl_private_key_path: std::env::var("SSL_PRIVATE_KEY_PATH").ok(),
-            ssl_certs_path: std::env::var("SSL_CERTS_PATH").ok(),
         }
     }
 }
