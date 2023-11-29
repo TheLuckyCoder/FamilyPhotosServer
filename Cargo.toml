@@ -1,7 +1,7 @@
 [package]
 name = "familyphotos"
 authors = ["Filea Răzvan-Gheorghe <razvan.filea@gmail.com>"]
-version = "3.1.0"
+version = "3.1.1"
 edition = "2021"
 
 [profile.release]
@@ -10,19 +10,18 @@ lto = "fat"
 
 [dependencies]
 # Async Runtime
-tokio = { version = "1", features = ["rt-multi-thread", "fs", "io-std"] }
+tokio = { version = "1", features = ["rt-multi-thread", "fs", "io-std", "macros"] }
 tokio-util = { version = "0.7", features = ["io"]}
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 rayon = "1.8"
 async-trait = "0.1"
 
 # Axum
-axum = { version = "0.6", features = ["multipart"] }
+axum = { version = "0.7", features = ["multipart"] }
 tower = "0.4"
-tower-http = { version = "0.4", features = ["trace", "cors"] }
-axum-server = { version = "0.5", features = ["tls-rustls"] }
-axum-login = "0.9"
-tower-sessions = { version = "0.6", default-features = false, features = ["postgres-store"] }
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+axum-login = "0.10"
+tower-sessions = { version = "0.7", default-features = false, features = ["postgres-store"] }
 
 # Logging
 tracing = "0.1"
@@ -47,6 +46,7 @@ time = { version = "0.3", features = ["macros", "parsing"] }
 dotenvy = "0.15"
 walkdir = "2.4"
 mime_guess = "2"
+anyhow = "1"
 
 # Crypto
 argon2 = { version = "0.5", features = ["std"] }

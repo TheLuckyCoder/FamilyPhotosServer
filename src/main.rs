@@ -1,11 +1,12 @@
+use anyhow::Context;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
-use axum_server::tls_rustls::RustlsConfig;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::ConnectOptions;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
+use tokio::net::TcpListener;
 use tower_sessions::PostgresStore;
 use tracing::log::LevelFilter;
 use tracing::{error, info};
@@ -33,7 +34,7 @@ mod utils;
 static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
-async fn main() -> Result<(), String> {
+async fn main() -> anyhow::Result<()> {
     // Environment Variables
     EnvVariables::init();
     let vars = EnvVariables::get_all();
@@ -91,31 +92,12 @@ async fn main() -> Result<(), String> {
 
     let http_service = http::router(app_state, session_store).into_make_service();
     let addr = SocketAddr::from(([127, 0, 0, 1], vars.server_port));
+    let listener = TcpListener::bind(addr).await?;
 
-    if vars.use_https {
-        let config = RustlsConfig::from_pem_file(
-            vars.ssl_certs_path
-                .expect("SSL_CERTS_PATH variable is missing"),
-            vars.ssl_private_key_path
-                .expect("SSL_PRIVATE_KEY_PATH variable is missing"),
-        )
-        .await
-        .map_err(|e| format!("Failed to load TLS config: {}", e))?;
-
-        info!("Server configured in HTTPS mode");
-        axum_server::bind_rustls(addr, config)
-            .serve(http_service)
-            .await
-    } else {
-        info!("Server configured in HTTP mode");
-        axum_server::bind(addr).serve(http_service).await
-    }
-    .expect("Failed to start axum server");
-
-    Ok(())
+    Ok(axum::serve(listener, http_service).await?)
 }
 
-async fn create_public_user(repo: &UsersRepository) -> Result<(), String> {
+async fn create_public_user(repo: &UsersRepository) -> anyhow::Result<()> {
     if repo.get_user(PUBLIC_USER_ID).await.is_some() {
         return Ok(());
     }
@@ -126,9 +108,9 @@ async fn create_public_user(repo: &UsersRepository) -> Result<(), String> {
         password_hash: generate_hash_from_password(generate_random_password()),
     };
 
-    println!("No users found, creating public user");
+    info!("No users found, creating public user");
 
     repo.insert_user(&user)
         .await
-        .map_err(|e| format!("Failed to create public user: {e}"))
+        .context("Failed to create public user")
 }

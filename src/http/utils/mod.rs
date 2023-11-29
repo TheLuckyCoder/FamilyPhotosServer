@@ -1,4 +1,4 @@
-use axum::body::StreamBody;
+use axum::body::Body;
 use axum::extract::multipart;
 use axum::http::header;
 use axum::response::IntoResponse;
@@ -30,7 +30,7 @@ pub async fn file_to_response(photo_path: &std::path::Path) -> AxumResult<impl I
             .map_err(|e| StatusError::create(e.to_string()))?,
     );
     // convert the `Stream` into an `axum::body::HttpBody`
-    let body = StreamBody::new(stream);
+    let body = Body::from_stream(stream);
 
     debug!("Mime: {}", mime);
     let headers = [
