@@ -3,37 +3,62 @@
 An open source self-hosted photo and video server for your family written in Rust.
 
 ## How to set up
-Install all the libraries on your system and set up the PostgresSQL service.
+A empty Postgres Database must be set up be it as a system library or Docker image.<br>
 
-### Needed libraries and programs:
-- postgres (for the database)
-- libheif (Optional - thumbnail generation for HEIC/HEIF images)
-- ffmpegthumbnailer (Optional - for video thumbnail generation)
+It's also expected that you run a proxy like Nginx to handle load balancing and TLS.
 
-While some of these are optional, it is recommended to install them all.
+### Docker
+Clone the repository and run the following command to build a docker image (for the x86_64 architecture):
+```shell
+docker build -t familyphotos .
+```
 
-### Configuration
-The server can be configured using a .env file located in the same folder as the executable or setting environment variables.<br>
+### Docker Compose
+Here is an example of a Docker compose file
+
+```
+version: '3'
+
+services:
+   familyphotos:
+     container_name: familyphotos
+     image: familyphotos
+     volumes:
+       - /path/to/photos/folder/:/opt/photos/
+     restart: always
+     network_mode: "host"
+     environment:
+       SCAN_NEW_FILES: true
+       GENERATE_THUMBNAILS_BACKGROUND: false
+       RUST_LOG: info
+       SERVER_PORT: 3000
+       DATABASE_URL: postgres://username:password@localhost/database?sslmode=disable
+       STORAGE_PATH: /opt/photos/
+```
+
+Below you can see all the environment variables that can be configured
+
+### Env Variables
 Variables in bold **must** be specified.
 - **SERVER_PORT**: The port the server should listen on
 - **DATABASE_URL** (eg: postgres://username:password@localhost/database?sslmode=disable)
 - **STORAGE_PATH**: The path to the folder where the photos will be stored
-- THUMBNAIL_PATH: Alternative storage path for photo thumbnails (default: in STORAGE_PATH/.thumbnail)
-- SCAN_NEW_FILES: Scan the storage for external changes at startup (default: true)
-- GENERATE_THUMBNAILS_BACKGROUND: Generate thumbnails for all photos on background thread (on startup), as opposed to only lazily generating when needed (default: false)
-- RUST_LOG: Specifies the Rust log level (default: none)
+- THUMBNAIL_PATH: Alternative storage path for photo thumbnails (this is useful for example when you want to store the photos on a HDD but the thumbnails on an SSD so that they load faster) [default: in STORAGE_PATH/.thumbnail]
+- SCAN_NEW_FILES: Scan the storage for external changes at startup [default: true]
+- GENERATE_THUMBNAILS_BACKGROUND: Generate thumbnails for all photos on background thread (on startup), as opposed to only lazily generating when needed [default: false]
+- RUST_LOG: Specifies the log level, it's recommended to set it to info [default: none]
 
 ### Creating user accounts
 On your first run, the server will generate a user account with the username "public" and a random password that will be printed in the console.<br>
 Knowing this password is not relevant as this user is only used for photos that belong to everyone.<br><br>
 To create new user accounts run the following command using the CLI:<br>
-```commandline
+```shell
 familyphotos user create -u <user_name> -d <display_name> [-p <password>]
 ```
 This will generate a new user with the given username, display name and password or a random one if not provided.<br>
 
 ## Folder structure
-The server will generate the following folder structure in the STORAGE_PATH:
+The server will generate the following folder structure in the STORAGE_PATH folder:
 ```
 ├───.thumbnail/ # Folder for thumbnails (if not specified elsewhere)
 │
@@ -47,36 +72,3 @@ The server will generate the following folder structure in the STORAGE_PATH:
     │   └───<photo_name> # Photo files
     └───<photo_name> # Photo files
 ```
-
-## Running the server
-
-To run the server, simply execute the binary for your chosen architecture.<br>
-
-### Systemd
-If you want the server to run in the background and automatically start on boot you might want to try setting up service in systemd such as below.<br>
-Place the following file in `/etc/systemd/system/familyphotos.service`
-```
-[Unit]
-Description=Family Photos Server
-Wants=network.target
-After=network.target
-
-[Service]
-WorkingDirectory=/path/to/executable_folder
-ExecStart=familyphotos
-User=...
-Restart=on-failure
-RestartSec=20
-SuccessExitStatus=0
-
-[Install]
-WantedBy=multi-user.target
-```
-Now run the following to reload the systemd daemon and enable the service:
-```commandline
-sudo systemctl daemon-reload
-sudo systemctl enable --now familyphotos
-```
-
-### Docker
-Docker alternatively you can build and run the server using the Dockerfile
