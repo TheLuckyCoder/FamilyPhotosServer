@@ -1,3 +1,4 @@
+use anyhow::Context;
 use std::cmp::max;
 use std::fs;
 use std::fs::File;
@@ -37,14 +38,14 @@ fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> std::io::Resul
 fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(
     load_path: P,
     save_path: R,
-) -> Result<(), String> {
+) -> anyhow::Result<()> {
     let intermediate_path = save_path
         .as_ref()
         .to_str()
-        .ok_or_else(|| "Failed to get string from path".to_string())?
+        .context("Failed to get string from path")?
         .rsplit_once('.')
         .map(|(before, _after)| before.to_string() + ".jpg")
-        .ok_or_else(|| "Failed split path".to_string())?;
+        .context("Failed split path")?;
 
     let mut command = Command::new("ffmpegthumbnailer");
     command
@@ -55,24 +56,24 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(
         .arg("-s")
         .arg(THUMBNAIL_TARGET_SIZE.to_string());
 
-    let mut child = command.spawn().map_err(|e| e.to_string())?;
+    let mut child = command.spawn()?;
 
     match child.wait_timeout(Duration::from_secs(15)) {
-        Ok(status) => status
-            .map(|_| ())
-            .ok_or_else(|| "Failed to get exit status".to_string())?,
+        Ok(status) => status.map(|_| ()).context("Failed to get exit status")?,
         Err(_) => {
-            child.kill().map_err(|e| e.to_string())?;
-            return child.wait().map(|_| ()).map_err(|e| e.to_string());
+            child.kill()?;
+            return Ok(child.wait().map(|_| ())?);
         }
     }
 
-    if let Ok(img) = image::open(&intermediate_path) {
-        fs::remove_file(intermediate_path).map_err(|e| e.to_string())?;
-        img.save(save_path).map_err(|e| e.to_string())
-    } else {
-        Err("Failed to open the file".to_string())
-    }
+    let img = image::open(&intermediate_path)
+        .with_context(|| format!("Failed to open file: {intermediate_path}"))?;
+
+    fs::remove_file(&intermediate_path)
+        .with_context(|| format!("Failed to delete file: {intermediate_path}"))?;
+
+    img.save(save_path)
+        .with_context(|| format!("Failed to save file: {intermediate_path}"))
 }
 
 pub fn generate_thumbnail<P, R>(load_path: P, save_path: R) -> bool
@@ -91,10 +92,9 @@ where
                 "Generated thumbnail for video: {}",
                 load_path.as_ref().display()
             ),
-            Err(error_message) => warn!(
-                "Thumbnail generation failed for video: {}\nCause: {}",
-                load_path.as_ref().display(),
-                error_message
+            Err(error) => warn!(
+                "Thumbnail generation failed for video: {}\nCause: {error}",
+                load_path.as_ref().display()
             ),
         }
 

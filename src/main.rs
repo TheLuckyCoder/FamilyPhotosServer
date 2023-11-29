@@ -56,6 +56,10 @@ async fn main() -> anyhow::Result<()> {
         .await
         .expect("Error building the connection pool");
 
+    if vars.auto_migrate_database {
+        sqlx::migrate!().run(&pool).await?;
+    }
+
     let app_state = AppState::new(
         pool.clone(),
         FileStorage::new(vars.storage_path, vars.thumbnail_path),

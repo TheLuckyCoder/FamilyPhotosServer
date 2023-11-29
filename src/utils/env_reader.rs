@@ -16,6 +16,7 @@ pub struct EnvVariables {
     pub thumbnail_path: Option<String>,
     pub scan_new_files: bool,
     pub generate_thumbnails_background: bool,
+    pub auto_migrate_database: bool,
 }
 
 impl EnvVariables {
@@ -40,6 +41,7 @@ impl EnvVariables {
                 "GENERATE_THUMBNAILS_BACKGROUND",
                 false,
             ),
+            auto_migrate_database: optional_env_var("AUTO_MIGRATE_DATABASE", true),
         }
     }
 }
