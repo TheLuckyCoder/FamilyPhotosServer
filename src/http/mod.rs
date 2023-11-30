@@ -37,7 +37,7 @@ pub fn router(app_state: AppState, session_store: PostgresStore) -> Router {
         .route("/", get(|| async { "Hello, World!" }))
         .route("/ping", get(|| async { StatusCode::OK }))
         .merge(users_api::router())
-        .merge(photos_api::router(app_state))
+        .nest("/photos", photos_api::router(app_state))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))

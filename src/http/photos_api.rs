@@ -20,7 +20,7 @@ use crate::model::user::{User, PUBLIC_USER_ID};
 use crate::utils::{internal_error, primitive_date_time_serde, read_exif};
 
 pub fn router(app_state: AppState) -> Router {
-    let user_router = Router::new()
+    Router::new()
         .route("/", get(photos_list))
         .route("/download/:photo_id", get(download_photo))
         .route("/thumbnail/:photo_id", get(thumbnail_photo))
@@ -28,25 +28,7 @@ pub fn router(app_state: AppState) -> Router {
         .route("/upload", post(upload_photo))
         .route("/delete/:photo_id", delete(delete_photo))
         .route("/change_location/:photo_id", post(change_photo_location))
-        .with_state(app_state.clone());
-
-    let public_router = Router::new()
-        .route("/", get(public_photos_list))
-        .route("/upload", post(public_upload_photo))
-        .with_state(app_state);
-
-    Router::new()
-        .nest("/photos", user_router)
-        .nest("/public_photos", public_router)
-}
-
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct UploadData {
-    #[serde(with = "primitive_date_time_serde")]
-    time_created: time::PrimitiveDateTime,
-    file_size: usize,
-    folder_name: Option<String>,
+        .with_state(app_state)
 }
 
 fn check_has_access(user: Option<User>, photo: &Photo) -> Result<User, ErrorResponse> {
@@ -62,81 +44,27 @@ fn check_has_access(user: Option<User>, photo: &Photo) -> Result<User, ErrorResp
     }
 }
 
-async fn base_upload_photo(
-    AppState {
-        storage,
-        users_repo: _users_repo,
-        photos_repo,
-        thumbnail_manager,
-    }: AppState,
-    user_name: String,
-    query: UploadData,
-    mut payload: Multipart,
-) -> AxumResult<impl IntoResponse> {
-    let field = payload
-        .next_field()
-        .await?
-        .ok_or_else(|| StatusError::new_status("Multipart is empty", StatusCode::BAD_REQUEST))?;
-
-    let file_name = field.file_name().unwrap_or_else(|| field.name().unwrap());
-
-    let new_photo_body = PhotoBody::new(
-        user_name.clone(),
-        file_name.to_string(),
-        query.time_created,
-        query.file_size as i64,
-        query.folder_name.clone(),
-    );
-
-    let photo_path = storage.resolve_photo(new_photo_body.partial_path());
-    if let Some(parent) = photo_path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent).await.map_err(internal_error)?;
-        }
-    }
-
-    info!("Uploading file to {}", photo_path.to_string_lossy());
-
-    match write_field_to_file(field, &photo_path).await {
-        Ok(_) => {}
-        Err(e) => {
-            // Upload failed, delete the file
-            let _ = fs::remove_file(photo_path).await;
-            return Err(e);
-        }
-    }
-
-    match photos_repo.insert_photo(&new_photo_body).await {
-        Ok(photo) => {
-            let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
-            let photo_id = photo.id;
-
-            // Start generating the thumbnail
-            task::spawn(async move {
-                thumbnail_manager
-                    .request_thumbnail(photo_id, photo_path, thumbnail_path)
-                    .await;
-            });
-
-            Ok(Json(photo))
-        }
-        Err(e) => {
-            // Insertion failed, delete the file
-            let _ = fs::remove_file(photo_path).await;
-            Err(e)
-        }
-    }
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PhotosListQuery {
+    #[serde(default)]
+    public: bool,
 }
-
-// region Specific User
 
 async fn photos_list(
     State(state): State<AppState>,
+    Query(query): Query<PhotosListQuery>,
     auth: AuthSession,
 ) -> AxumResult<impl IntoResponse> {
     let user = auth.user.ok_or(StatusCode::BAD_REQUEST)?;
 
-    Ok(Json(state.photos_repo.get_photos_by_user(user.id).await?))
+    let user_id = if query.public {
+        PUBLIC_USER_ID
+    } else {
+        user.id.as_str()
+    };
+
+    Ok(Json(state.photos_repo.get_photos_by_user(user_id).await?))
 }
 
 async fn thumbnail_photo(
@@ -208,15 +136,87 @@ async fn get_photo_exif(
     }
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UploadDataQuery {
+    #[serde(with = "primitive_date_time_serde")]
+    time_created: time::PrimitiveDateTime,
+    folder_name: Option<String>,
+    #[serde(default)]
+    make_public: bool,
+}
+
 async fn upload_photo(
     State(state): State<AppState>,
-    Query(query): Query<UploadData>,
+    Query(query): Query<UploadDataQuery>,
     auth: AuthSession,
-    payload: Multipart,
-) -> impl IntoResponse {
+    mut payload: Multipart,
+) -> AxumResult<impl IntoResponse> {
     let user = auth.user.ok_or(StatusCode::UNAUTHORIZED)?;
 
-    base_upload_photo(state, user.id, query, payload).await
+    let field = payload
+        .next_field()
+        .await?
+        .ok_or_else(|| StatusError::new_status("Multipart is empty", StatusCode::BAD_REQUEST))?;
+
+    let file_name = field
+        .file_name()
+        .or(field.name())
+        .ok_or_else(|| StatusError::new_status("Multipart has no name", StatusCode::BAD_REQUEST))?;
+
+    let mut new_photo_body = PhotoBody::new(
+        if query.make_public {
+            String::from(PUBLIC_USER_ID)
+        } else {
+            user.id
+        },
+        String::from(file_name),
+        query.time_created,
+        0, // To be set after it is written to disk
+        query.folder_name,
+    );
+
+    let photo_path = state.storage.resolve_photo(new_photo_body.partial_path());
+    if let Some(parent) = photo_path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).await.map_err(internal_error)?;
+        }
+    }
+
+    info!("Uploading file to {}", photo_path.display());
+
+    match write_field_to_file(field, &photo_path).await {
+        Ok(file_size) => new_photo_body.set_file_size(file_size as i64),
+        Err(e) => {
+            // Upload failed, delete the file
+            let _ = fs::remove_file(photo_path).await;
+            return Err(e);
+        }
+    }
+
+    match state.photos_repo.insert_photo(&new_photo_body).await {
+        Ok(photo) => {
+            let thumbnail_path = state
+                .storage
+                .resolve_thumbnail(photo.partial_thumbnail_path());
+            let photo_id = photo.id;
+
+            // Start generating the thumbnail
+            task::spawn(async move {
+                state
+                    .thumbnail_manager
+                    .request_thumbnail(photo_id, photo_path, thumbnail_path)
+                    .await;
+            });
+
+            Ok(Json(photo))
+        }
+        Err(e) => {
+            // Insertion failed, delete the file
+            let _ = fs::remove_file(photo_path).await;
+            Err(e)
+        }
+    }
 }
 
 async fn delete_photo(
@@ -255,7 +255,9 @@ async fn change_photo_location(
     let photo = state.photos_repo.get_photo(photo_id).await?;
     check_has_access(auth.user, &photo)?;
 
-    let target_user_name = query.target_user_name.unwrap_or(PUBLIC_USER_ID.to_string());
+    let target_user_name = query
+        .target_user_name
+        .unwrap_or(String::from(PUBLIC_USER_ID));
 
     let changed_photo = Photo {
         id: photo.id(),
@@ -273,12 +275,7 @@ async fn change_photo_location(
 
     storage
         .move_file(&source_path, &destination_path)
-        .map_err(|e| {
-            StatusError::new_status(
-                std::format!("Failed moving the photo: {e}"),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            )
-        })?;
+        .map_err(|e| StatusError::create(format!("Failed moving the photo: {e}")))?;
 
     state
         .photos_repo
@@ -288,31 +285,3 @@ async fn change_photo_location(
 
     Ok(Json(changed_photo))
 }
-
-// endregion Specific User
-
-// region Public
-
-async fn public_photos_list(
-    State(state): State<AppState>,
-    auth: AuthSession,
-) -> AxumResult<impl IntoResponse> {
-    auth.user.ok_or(StatusCode::UNAUTHORIZED)?;
-
-    Ok(Json(
-        state.photos_repo.get_photos_by_user(PUBLIC_USER_ID).await?,
-    ))
-}
-
-async fn public_upload_photo(
-    State(state): State<AppState>,
-    Query(query): Query<UploadData>,
-    auth: AuthSession,
-    payload: Multipart,
-) -> impl IntoResponse {
-    auth.user.ok_or(StatusCode::UNAUTHORIZED)?;
-
-    base_upload_photo(state, PUBLIC_USER_ID.to_string(), query, payload).await
-}
-
-// endregion Public

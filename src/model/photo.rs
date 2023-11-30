@@ -130,4 +130,8 @@ impl PhotoBody {
             folder,
         }
     }
+    
+    pub fn set_file_size(&mut self, value: i64) {
+        self.file_size = value;
+    }
 }

@@ -112,3 +112,18 @@ The server will generate the following folder structure in the STORAGE_PATH fold
     │   └───<photo_name> # Photo files
     └───<photo_name> # Photo files
 ```
+
+## HTTP API
+```
+/ : Ping api to check if the server is online
+/login : User login
+/logout : Logout current user
+
+/photos?public=bool : return a json list of all the user's photos or all public photos
+/photos/download/:photo_id : returns an image if the user has access to it
+/photos/thumbnail/:photo_id : returns a scaled down image if the user has access to it
+/photos/exif/:photo_id : returns a scaled down image if the user has access to it
+/photos/upload : uploads a photo to the user's directory
+/photos/delete/:photo_id : delete's a photo if the user has access to it (any user can delete a public photo)
+/photos/change_location/:photo_id : returns a scaled down image if the user has access to it
+```

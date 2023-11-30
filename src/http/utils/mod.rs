@@ -6,7 +6,7 @@ use futures_util::TryStreamExt;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
-use tracing::debug;
+use tracing::{debug, error};
 
 use crate::http::utils::status_error::StatusError;
 use crate::repo::users_repo::UsersRepository;
@@ -50,17 +50,24 @@ pub async fn file_to_response(photo_path: &std::path::Path) -> AxumResult<impl I
     Ok((headers, body))
 }
 
+///
+/// Returns the amount of bytes written to disk
+///
 pub async fn write_field_to_file<'a, 'b>(
     mut field: multipart::Field<'a>,
     file_path: &'b std::path::Path,
-) -> AxumResult<impl IntoResponse> {
-    let mut file = fs::File::create(file_path)
-        .await
-        .map_err(|_| StatusError::create("Failed creating photo file"))?;
+) -> AxumResult<usize> {
+    let mut file = fs::File::create(file_path).await.map_err(|e| {
+        error!("Failed creating photo file: {e}");
+        StatusError::create("Failed creating photo file")
+    })?;
+
+    let mut file_size = 0;
 
     while let Some(chunk) = field.try_next().await? {
+        file_size += chunk.len();
         file.write_all(&chunk).await.map_err(internal_error)?;
     }
 
-    Ok(())
+    Ok(file_size)
 }
