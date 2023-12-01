@@ -29,7 +29,6 @@ services:
      network_mode: "host"
      environment:
        SCAN_NEW_FILES: true
-       GENERATE_THUMBNAILS_BACKGROUND: false
        RUST_LOG: info
        SERVER_PORT: 3000
        DATABASE_URL: postgres://username:password@localhost/database?sslmode=disable
@@ -43,9 +42,9 @@ Variables in bold **must** be specified.
 - **SERVER_PORT**: The port the server should listen on
 - **DATABASE_URL** (eg: postgres://username:password@localhost/database?sslmode=disable)
 - **STORAGE_PATH**: The path to the folder where the photos will be stored
-- THUMBNAIL_PATH: Alternative storage path for photo thumbnails (this is useful for example when you want to store the photos on an HDD but the thumbnails on an SSD so that they load faster) [default: in STORAGE_PATH/.thumbnail]
+- PREVIEWS_PATH: Alternative storage path for photo previews (this is useful for example when you want to store the photos on an HDD but the previes on an SSD so that they load faster) [default: in STORAGE_PATH/.preview]
 - SCAN_NEW_FILES: Scan the storage for external changes at startup [default: true]
-- GENERATE_THUMBNAILS_BACKGROUND: Generate thumbnails for all photos on background thread (on startup), as opposed to only lazily generating when needed [default: false]
+- GENERATE_PREVIEWS_BACKGROUND: Generate previews for all photos on background thread (on startup), as opposed to only lazily generating when needed [default: false]
 - RUST_LOG: Specifies the log level, it's recommended to set it to info [default: none]
 
 ### Creating user accounts
@@ -100,7 +99,7 @@ http {
 ## Folder structure
 The server will generate the following folder structure in the STORAGE_PATH folder:
 ```
-├───.thumbnail/ # Folder for thumbnails (if not specified elsewhere)
+├───.preview/ # Folder for previews (if not specified elsewhere)
 │
 ├───public/ # The folder of the "public" user, alas photos who belong to everyone
 │   ├───<album_name>/ # Folder for albums aka "folders"
@@ -121,7 +120,7 @@ The server will generate the following folder structure in the STORAGE_PATH fold
 
 /photos?public=bool : return a json list of all the user's photos or all public photos
 /photos/download/:photo_id : returns an image if the user has access to it
-/photos/thumbnail/:photo_id : returns a scaled down image if the user has access to it
+/photos/preview/:photo_id : returns a scaled down image if the user has access to it
 /photos/exif/:photo_id : returns a scaled down image if the user has access to it
 /photos/upload : uploads a photo to the user's directory
 /photos/delete/:photo_id : delete's a photo if the user has access to it (any user can delete a public photo)

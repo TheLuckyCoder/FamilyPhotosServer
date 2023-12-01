@@ -13,9 +13,9 @@ pub struct EnvVariables {
     pub server_port: u16,
     pub database_url: String,
     pub storage_path: String,
-    pub thumbnail_path: Option<String>,
+    pub previews_path: Option<String>,
     pub scan_new_files: bool,
-    pub generate_thumbnails_background: bool,
+    pub generate_previews_background: bool,
     pub auto_migrate_database: bool,
 }
 
@@ -35,12 +35,9 @@ impl EnvVariables {
                 .expect("SERVER_PORT must be a valid port number!"),
             database_url: required_env_var("DATABASE_URL"),
             storage_path: required_env_var("STORAGE_PATH"),
-            thumbnail_path: std::env::var("THUMBNAIL_PATH").ok(),
+            previews_path: std::env::var("PREVIEWS_PATH").ok(),
             scan_new_files: optional_env_var("SCAN_NEW_FILES", true),
-            generate_thumbnails_background: optional_env_var(
-                "GENERATE_THUMBNAILS_BACKGROUND",
-                false,
-            ),
+            generate_previews_background: optional_env_var("GENERATE_PREVIEWS_BACKGROUND", false),
             auto_migrate_database: optional_env_var("AUTO_MIGRATE_DATABASE", true),
         }
     }

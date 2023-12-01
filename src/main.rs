@@ -25,8 +25,8 @@ mod cli;
 mod file_scan;
 mod http;
 mod model;
+mod previews;
 mod repo;
-mod thumbnail;
 mod utils;
 
 #[cfg(not(target_env = "msvc"))]
@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app_state = AppState::new(
         pool.clone(),
-        FileStorage::new(vars.storage_path, vars.thumbnail_path),
+        FileStorage::new(vars.storage_path, vars.previews_path),
     );
 
     let session_store = PostgresStore::new(pool);
@@ -84,11 +84,11 @@ async fn main() -> anyhow::Result<()> {
         file_scan::scan_new_files(app_state.clone());
     }
 
-    // Generate thumbnails in background
-    if vars.generate_thumbnails_background {
-        match thumbnail::generate_all_background(app_state.clone()).await {
-            Ok(_) => info!("Background thumbnail generation finished"),
-            Err(e) => error!("Could not start background thumbnail generation: {e}"),
+    // Generate previews in background
+    if vars.generate_previews_background {
+        match previews::generate_all_background(app_state.clone()).await {
+            Ok(_) => info!("Background preview generation finished"),
+            Err(e) => error!("Could not start background preview generation: {e}"),
         }
     }
 

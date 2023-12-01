@@ -19,12 +19,12 @@ pub async fn generate_all_foreground(app_state: &AppState) -> Result<(), String>
 
     photos.par_iter().for_each(|photo| {
         let photo_path = app_state.storage.resolve_photo(photo.partial_path());
-        let thumbnail_path = app_state
+        let preview_path = app_state
             .storage
-            .resolve_thumbnail(photo.partial_thumbnail_path());
+            .resolve_preview(photo.partial_preview_path());
 
-        if photo_path.exists() && !thumbnail_path.exists() {
-            generate_thumbnail(photo_path, thumbnail_path);
+        if photo_path.exists() && !preview_path.exists() {
+            generate_preview(photo_path, preview_path);
         }
     });
 
@@ -42,14 +42,14 @@ pub async fn generate_all_background(app_state: AppState) -> Result<(), String> 
     task::spawn(async move {
         for photo in photos {
             let photo_path = app_state.storage.resolve_photo(photo.partial_path());
-            let thumbnail_path = app_state
+            let preview_path = app_state
                 .storage
-                .resolve_thumbnail(photo.partial_thumbnail_path());
+                .resolve_preview(photo.partial_preview_path());
 
             if photo_path.exists() {
                 app_state
-                    .thumbnail_manager
-                    .request_thumbnail(photo.id, photo_path, thumbnail_path)
+                    .preview_manager
+                    .request_previews(photo.id, photo_path, preview_path)
                     .await;
             }
         }

@@ -13,9 +13,9 @@ use tower_http::{cors, trace};
 use tower_sessions::{Expiry, PostgresStore, SessionManagerLayer};
 use tracing::{error, Level};
 
+use crate::previews::PreviewsManager;
 use crate::repo::photos_repo::PhotosRepository;
 use crate::repo::users_repo::UsersRepository;
-use crate::thumbnail::ThumbnailManager;
 use crate::utils::file_storage::FileStorage;
 
 mod photos_api;
@@ -53,7 +53,7 @@ pub struct AppState {
     pub storage: FileStorage,
     pub users_repo: UsersRepository,
     pub photos_repo: PhotosRepository,
-    pub thumbnail_manager: ThumbnailManager,
+    pub preview_manager: PreviewsManager,
 }
 
 impl AppState {
@@ -62,7 +62,7 @@ impl AppState {
             storage,
             users_repo: UsersRepository::new(pool.clone()),
             photos_repo: PhotosRepository::new(pool),
-            thumbnail_manager: ThumbnailManager::default(),
+            preview_manager: PreviewsManager::default(),
         }
     }
 }

@@ -67,7 +67,7 @@ impl Photo {
         self.id
     }
 
-    pub fn partial_thumbnail_path(&self) -> String {
+    pub fn partial_preview_path(&self) -> String {
         let special_extension = match self.name.rsplit_once('.') {
             None => None,
             Some((_before, after)) => {
@@ -130,7 +130,7 @@ impl PhotoBody {
             folder,
         }
     }
-    
+
     pub fn set_file_size(&mut self, value: i64) {
         self.file_size = value;
     }

@@ -1,7 +1,7 @@
 use crate::http::AppState;
 use crate::model::user::User;
 use crate::utils::password_hash::{generate_hash_from_password, generate_random_password};
-use crate::{file_scan, thumbnail};
+use crate::{file_scan, previews};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -48,8 +48,8 @@ enum UsersCommand {
 enum PhotosCommand {
     /// Trigger a manual scan of the filesystem
     ScanPhotos,
-    /// Trigger a manual generation of thumbnails
-    GenerateThumbnails,
+    /// Trigger a manual generation of previews
+    GeneratePreviews,
 }
 
 #[derive(Subcommand)]
@@ -151,11 +151,9 @@ async fn photos_commands(state: &AppState, command: PhotosCommand) {
                 .await
                 .expect("Failed to join task");
         }
-        PhotosCommand::GenerateThumbnails => {
-            match thumbnail::generate_all_foreground(state).await {
-                Ok(_) => println!("Thumbnail generation finished"),
-                Err(e) => eprintln!("Thumbnail generation failed: {e}"),
-            }
-        }
+        PhotosCommand::GeneratePreviews => match previews::generate_all_foreground(state).await {
+            Ok(_) => println!("Preview generation finished"),
+            Err(e) => eprintln!("Preview generation failed: {e}"),
+        },
     }
 }

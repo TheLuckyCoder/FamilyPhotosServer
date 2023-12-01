@@ -23,7 +23,7 @@ pub fn router(app_state: AppState) -> Router {
     Router::new()
         .route("/", get(photos_list))
         .route("/download/:photo_id", get(download_photo))
-        .route("/thumbnail/:photo_id", get(thumbnail_photo))
+        .route("/preview/:photo_id", get(preview_photo))
         .route("/exif/:photo_id", get(get_photo_exif))
         .route("/upload", post(upload_photo))
         .route("/delete/:photo_id", delete(delete_photo))
@@ -67,7 +67,7 @@ async fn photos_list(
     Ok(Json(state.photos_repo.get_photos_by_user(user_id).await?))
 }
 
-async fn thumbnail_photo(
+async fn preview_photo(
     State(state): State<AppState>,
     Path(photo_id): Path<i64>,
     auth: AuthSession,
@@ -76,24 +76,24 @@ async fn thumbnail_photo(
         storage,
         users_repo: _users_repo,
         photos_repo,
-        thumbnail_manager,
+        preview_manager,
     } = state;
 
     let photo = photos_repo.get_photo(photo_id).await?;
     check_has_access(auth.user, &photo)?;
 
     let photo_path = storage.resolve_photo(photo.partial_path());
-    let thumbnail_path = storage.resolve_thumbnail(photo.partial_thumbnail_path());
+    let preview_path = storage.resolve_preview(photo.partial_preview_path());
 
-    let thumbnail_generated = thumbnail_manager
-        .request_thumbnail(photo_id, photo_path.clone(), thumbnail_path.clone())
+    let preview_generated = preview_manager
+        .request_previews(photo_id, photo_path.clone(), preview_path.clone())
         .await;
 
-    let path = if thumbnail_generated {
-        thumbnail_path
+    let path = if preview_generated {
+        preview_path
     } else {
         error!(
-            "Failed to generate thumbnail for photo {}: {}",
+            "Failed to generate preview for photo {}: {}",
             photo_id,
             photo_path.display()
         );
@@ -125,7 +125,9 @@ async fn get_photo_exif(
     check_has_access(auth.user, &photo)?;
 
     let path = state.storage.resolve_photo(photo.partial_path());
-    let exif = task::spawn_blocking(move || read_exif(path)).await.unwrap();
+    let exif = task::spawn_blocking(move || read_exif(path))
+        .await
+        .map_err(internal_error)?;
 
     match exif {
         Some(exif) => Ok(Json(exif)),
@@ -196,16 +198,14 @@ async fn upload_photo(
 
     match state.photos_repo.insert_photo(&new_photo_body).await {
         Ok(photo) => {
-            let thumbnail_path = state
-                .storage
-                .resolve_thumbnail(photo.partial_thumbnail_path());
+            let preview_path = state.storage.resolve_preview(photo.partial_preview_path());
             let photo_id = photo.id;
 
-            // Start generating the thumbnail
+            // Start generating the preview
             task::spawn(async move {
                 state
-                    .thumbnail_manager
-                    .request_thumbnail(photo_id, photo_path, thumbnail_path)
+                    .preview_manager
+                    .request_previews(photo_id, photo_path, preview_path)
                     .await;
             });
 
@@ -227,7 +227,7 @@ async fn delete_photo(
     let photo = state.photos_repo.get_photo(photo_id).await?;
     check_has_access(auth.user, &photo)?;
 
-    let _ = state.storage.delete_file(photo.partial_thumbnail_path());
+    let _ = state.storage.delete_file(photo.partial_preview_path());
 
     match state.storage.delete_file(photo.partial_path()) {
         Ok(_) => match state.photos_repo.delete_photo(photo_id).await {

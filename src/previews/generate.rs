@@ -15,12 +15,12 @@ use mime_guess::MimeGuess;
 use tracing::{error, info, warn};
 use wait_timeout::ChildExt;
 
-const THUMBNAIL_TARGET_SIZE: u32 = 500;
+const PREVIEW_TARGET_SIZE: u32 = 500;
 
-fn generate_heic_thumbnail(load_path: &Path, save_path: &Path) -> std::io::Result<bool> {
-    let mut child = Command::new("heif-thumbnailer")
+fn generate_heic_preview(load_path: &Path, save_path: &Path) -> std::io::Result<bool> {
+    let mut child = Command::new("heif-previewer")
         .arg("-s")
-        .arg(THUMBNAIL_TARGET_SIZE.to_string())
+        .arg(stringify!(PREVIEW_TARGET_SIZE))
         .arg(load_path)
         .arg(save_path)
         .spawn()?;
@@ -54,7 +54,7 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(
         .arg("-o")
         .arg(Path::new(&intermediate_path))
         .arg("-s")
-        .arg(THUMBNAIL_TARGET_SIZE.to_string());
+        .arg(stringify!(PREVIEW_TARGET_SIZE));
 
     let mut child = command.spawn()?;
 
@@ -76,7 +76,7 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(
         .with_context(|| format!("Failed to save file: {intermediate_path}"))
 }
 
-pub fn generate_thumbnail<P, R>(load_path: P, save_path: R) -> bool
+pub fn generate_preview<P, R>(load_path: P, save_path: R) -> bool
 where
     P: AsRef<Path>,
     R: AsRef<Path>,
@@ -89,11 +89,11 @@ where
 
         match &result {
             Ok(_) => info!(
-                "Generated thumbnail for video: {}",
+                "Generated preview for video: {}",
                 load_path.as_ref().display()
             ),
             Err(error) => warn!(
-                "Thumbnail generation failed for video: {}\nCause: {error}",
+                "Preview generation failed for video: {}\nCause: {error}",
                 load_path.as_ref().display()
             ),
         }
@@ -102,10 +102,10 @@ where
     }
 
     if ext == "heic" || ext == "heif" {
-        return match generate_heic_thumbnail(load_path.as_ref(), save_path.as_ref()) {
+        return match generate_heic_preview(load_path.as_ref(), save_path.as_ref()) {
             Ok(result) => result,
             Err(e) => {
-                error!("Error generating heic/heif thumbnail: {e}");
+                error!("Error generating heic/heif preview: {e}");
                 false
             }
         };
@@ -145,11 +145,11 @@ where
 {
     let (width, height) = resize_dimensions_fill(img.width(), img.height());
 
-    let mut thumbnail = img.resize_exact(width, height, FilterType::Nearest);
+    let mut preview = img.resize_exact(width, height, FilterType::Nearest);
     match orientation {
-        Some(3) => thumbnail = thumbnail.rotate180(),
-        Some(6) => thumbnail = thumbnail.rotate90(),
-        Some(8) => thumbnail = thumbnail.rotate270(),
+        Some(3) => preview = preview.rotate180(),
+        Some(6) => preview = preview.rotate90(),
+        Some(8) => preview = preview.rotate270(),
         _ => {}
     };
 
@@ -160,10 +160,10 @@ where
                 let file = File::create(save_path).unwrap();
                 let writer = BufWriter::new(file);
                 JpegEncoder::new_with_quality(writer, 70)
-                    .encode_image(&thumbnail)
+                    .encode_image(&preview)
                     .is_ok()
             } else {
-                thumbnail.save(save_path).is_ok()
+                preview.save(save_path).is_ok()
             }
         }
     }
@@ -171,8 +171,8 @@ where
 
 #[inline]
 fn resize_dimensions_fill(width: u32, height: u32) -> (u32, u32) {
-    let wratio = THUMBNAIL_TARGET_SIZE as f64 / width as f64;
-    let hratio = THUMBNAIL_TARGET_SIZE as f64 / height as f64;
+    let wratio = PREVIEW_TARGET_SIZE as f64 / width as f64;
+    let hratio = PREVIEW_TARGET_SIZE as f64 / height as f64;
     let ratio = f64::max(wratio, hratio);
 
     let nw = max((width as f64 * ratio).round() as u64, 1);

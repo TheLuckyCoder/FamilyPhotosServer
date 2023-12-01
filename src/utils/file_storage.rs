@@ -4,16 +4,16 @@ use std::path::{Path, PathBuf};
 #[derive(Clone)]
 pub struct FileStorage {
     storage_folder: PathBuf,
-    thumbnail_folder: PathBuf,
+    preview_folder: PathBuf,
 }
 
 impl FileStorage {
-    pub fn new(storage_path: String, thumbnail_path: Option<String>) -> FileStorage {
+    pub fn new(storage_path: String, preview_path: Option<String>) -> FileStorage {
         let base_folder = PathBuf::from(storage_path);
 
-        let thumbnail_folder = thumbnail_path.map(PathBuf::from).unwrap_or_else(|| {
+        let preview_folder = preview_path.map(PathBuf::from).unwrap_or_else(|| {
             let mut path = base_folder.clone();
-            path.push(".thumbnail");
+            path.push(".preview");
             path
         });
 
@@ -24,20 +24,20 @@ impl FileStorage {
             assert!(base_folder.is_dir());
         }
 
-        if !thumbnail_folder.exists() {
-            fs::create_dir_all(&thumbnail_folder).unwrap_or_else(|_| {
+        if !preview_folder.exists() {
+            fs::create_dir_all(&preview_folder).unwrap_or_else(|_| {
                 panic!(
-                    "Failed to create thumbnail folder at {}",
-                    thumbnail_folder.display()
+                    "Failed to create preview folder at {}",
+                    preview_folder.display()
                 )
             });
         } else {
-            assert!(thumbnail_folder.is_dir());
+            assert!(preview_folder.is_dir());
         }
 
         FileStorage {
             storage_folder: base_folder,
-            thumbnail_folder,
+            preview_folder,
         }
     }
 
@@ -45,8 +45,8 @@ impl FileStorage {
         self.storage_folder.join(relative.as_ref())
     }
 
-    pub fn resolve_thumbnail<P: AsRef<Path>>(&self, relative: P) -> PathBuf {
-        self.thumbnail_folder.join(relative.as_ref())
+    pub fn resolve_preview<P: AsRef<Path>>(&self, relative: P) -> PathBuf {
+        self.preview_folder.join(relative.as_ref())
     }
 
     pub fn move_file<P1: AsRef<Path>, P2: AsRef<Path>>(
