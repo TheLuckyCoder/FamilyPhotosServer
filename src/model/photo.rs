@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use time::PrimitiveDateTime;
 
 use crate::utils::primitive_date_time_serde;
@@ -28,7 +28,7 @@ pub trait PhotoBase {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct Photo {
     pub id: i64,
@@ -134,4 +134,17 @@ impl PhotoBody {
     pub fn set_file_size(&mut self, value: i64) {
         self.file_size = value;
     }
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct PhotoDto {
+    pub id: i64,
+    pub user_id: String,
+    pub name: String,
+    #[serde(with = "primitive_date_time_serde")]
+    pub created_at: PrimitiveDateTime,
+    pub file_size: i64,
+    pub folder: Option<String>,
+    pub is_favorite: bool,
 }

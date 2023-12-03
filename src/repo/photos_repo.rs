@@ -1,4 +1,4 @@
-use crate::model::photo::{Photo, PhotoBase, PhotoBody};
+use crate::model::photo::{Photo, PhotoBase, PhotoBody, PhotoDto};
 use crate::utils::internal_error;
 use axum::response::ErrorResponse;
 use sqlx::{query, query_as, PgPool, Postgres, QueryBuilder};
@@ -29,12 +29,14 @@ impl PhotosRepository {
 
     pub async fn get_photos_by_user<T: AsRef<str>>(
         &self,
-        user_name: T,
-    ) -> Result<Vec<Photo>, ErrorResponse> {
+        user_id: T,
+    ) -> Result<Vec<PhotoDto>, ErrorResponse> {
         query_as!(
-            Photo,
-            "select * from photos where user_id = $1 order by created_at desc",
-            user_name.as_ref()
+            PhotoDto,
+            "select photos.*,\
+                exists(select 1 from favorite_photos as fp where fp.user_id = $1 and fp.photo_id = photos.id) \
+                as \"is_favorite!\" from photos where photos.user_id = $1 order by photos.created_at desc",
+            user_id.as_ref()
         )
         .fetch_all(&self.pool)
         .await
@@ -75,6 +77,38 @@ impl PhotosRepository {
             .map_err(internal_error)?;
 
         Ok(())
+    }
+
+    pub async fn insert_favorite<T: AsRef<str>>(
+        &self,
+        photo_id: i64,
+        user_id: T,
+    ) -> Result<(), ErrorResponse> {
+        query!(
+            "insert into favorite_photos (photo_id, user_id) values ($1, $2)",
+            photo_id,
+            user_id.as_ref()
+        )
+        .execute(&self.pool)
+        .await
+        .map(|_| ())
+        .map_err(internal_error)
+    }
+
+    pub async fn delete_favorite<T: AsRef<str>>(
+        &self,
+        photo_id: i64,
+        user_id: T,
+    ) -> Result<(), ErrorResponse> {
+        query!(
+            "delete from favorite_photos where photo_id = $1 and user_id = $2",
+            photo_id,
+            user_id.as_ref()
+        )
+        .execute(&self.pool)
+        .await
+        .map(|_| ())
+        .map_err(internal_error)
     }
 
     pub async fn update_photo(&self, photo: &Photo) -> Result<(), ErrorResponse> {
