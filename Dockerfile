@@ -28,7 +28,7 @@ COPY . .
 RUN rm ./target/${TARGET_ARCH}/release/deps/familyphotos*
 RUN cargo build --release --target ${TARGET_ARCH}
 
-FROM alpine:3.18
+FROM alpine:3.19
 
 ARG TARGET_ARCH
 
