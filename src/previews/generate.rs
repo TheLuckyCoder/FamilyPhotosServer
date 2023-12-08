@@ -1,12 +1,11 @@
-use anyhow::Context;
 use std::cmp::max;
-use std::fs;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
+use anyhow::Context;
 use exif::{In, Tag};
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
@@ -17,20 +16,20 @@ use wait_timeout::ChildExt;
 
 const PREVIEW_TARGET_SIZE: u32 = 500;
 
-fn generate_heic_preview(load_path: &Path, save_path: &Path) -> std::io::Result<bool> {
+fn generate_heic_preview(load_path: &Path, save_path: &Path) -> anyhow::Result<bool> {
     let mut child = Command::new("heif-previewer")
         .arg("-s")
         .arg(stringify!(PREVIEW_TARGET_SIZE))
         .arg(load_path)
         .arg(save_path)
-        .spawn()?;
+        .spawn()
+        .context("Failed to start heif-previewer command")?;
 
     match child.wait_timeout(Duration::from_secs(5)) {
         Ok(status) => Ok(status.map_or(false, |s| s.success())),
         Err(e) => {
             child.kill()?;
-            child.wait()?;
-            Err(e)
+            Err(e).context("Error while rung heif-previwer")
         }
     }
 }
@@ -111,7 +110,7 @@ fn read_exif_orientation(path: &Path) -> Option<u32> {
         return None;
     }
 
-    let file = fs::File::open(path).ok()?;
+    let file = File::open(path).ok()?;
     let mut bufreader = BufReader::new(&file);
     let reader = exif::Reader::new()
         .read_from_container(&mut bufreader)
