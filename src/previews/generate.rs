@@ -39,20 +39,12 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(
     load_path: P,
     save_path: R,
 ) -> anyhow::Result<()> {
-    let intermediate_path = save_path
-        .as_ref()
-        .to_str()
-        .context("Failed to get string from path")?
-        .rsplit_once('.')
-        .map(|(before, _after)| before.to_string() + ".jpg")
-        .context("Failed split path")?;
-
     let mut command = Command::new("ffmpegthumbnailer");
     command
         .arg("-i")
         .arg(load_path.as_ref())
         .arg("-o")
-        .arg(Path::new(&intermediate_path))
+        .arg(save_path.as_ref())
         .arg("-s")
         .arg(stringify!(PREVIEW_TARGET_SIZE));
 
@@ -60,20 +52,13 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(
 
     match child.wait_timeout(Duration::from_secs(15)) {
         Ok(status) => status.map(|_| ()).context("Failed to get exit status")?,
-        Err(_) => {
+        Err(e) => {
             child.kill()?;
-            return Ok(child.wait().map(|_| ())?);
+            return Err(e).context("ffmpegthumbnailer run error");
         }
     }
 
-    let img = image::open(&intermediate_path)
-        .with_context(|| format!("Failed to open file: {intermediate_path}"))?;
-
-    fs::remove_file(&intermediate_path)
-        .with_context(|| format!("Failed to delete file: {intermediate_path}"))?;
-
-    img.save(save_path)
-        .with_context(|| format!("Failed to save file: {intermediate_path}"))
+    Ok(())
 }
 
 pub fn generate_preview<P, R>(load_path: P, save_path: R) -> bool
