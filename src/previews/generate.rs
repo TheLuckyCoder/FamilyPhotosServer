@@ -16,20 +16,20 @@ use wait_timeout::ChildExt;
 
 const PREVIEW_TARGET_SIZE: u32 = 500;
 
-fn generate_heic_preview(load_path: &Path, save_path: &Path) -> anyhow::Result<bool> {
-    let mut child = Command::new("heif-previewer")
+fn generate_heif_preview(load_path: &Path, save_path: &Path) -> anyhow::Result<bool> {
+    let mut child = Command::new("heif-thumbnailer")
         .arg("-s")
         .arg(stringify!(PREVIEW_TARGET_SIZE))
         .arg(load_path)
         .arg(save_path)
         .spawn()
-        .context("Failed to start heif-previewer command")?;
+        .context("Failed to start heif-thumbnailer command")?;
 
     match child.wait_timeout(Duration::from_secs(5)) {
         Ok(status) => Ok(status.map_or(false, |s| s.success())),
         Err(e) => {
             child.kill()?;
-            Err(e).context("Error while rung heif-previwer")
+            Err(e).context("Error while rung heif-thumbnailer")
         }
     }
 }
@@ -86,7 +86,7 @@ where
     }
 
     if ext == "heic" || ext == "heif" {
-        return match generate_heic_preview(load_path.as_ref(), save_path.as_ref()) {
+        return match generate_heif_preview(load_path.as_ref(), save_path.as_ref()) {
             Ok(result) => result,
             Err(e) => {
                 error!("Error generating heic/heif preview: {e}");
