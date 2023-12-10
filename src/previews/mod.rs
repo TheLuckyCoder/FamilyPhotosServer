@@ -17,7 +17,7 @@ pub async fn generate_all_foreground(app_state: &AppState) -> Result<(), String>
         .await
         .map_err(|_| "Could not load photos".to_string())?;
 
-    photos.par_iter().for_each(|photo| {
+    photos.into_par_iter().for_each(|photo| {
         let photo_path = app_state.storage.resolve_photo(photo.partial_path());
         let preview_path = app_state
             .storage

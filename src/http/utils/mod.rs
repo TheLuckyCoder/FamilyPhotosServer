@@ -32,7 +32,6 @@ pub async fn file_to_response(photo_path: &std::path::Path) -> AxumResult<impl I
     // convert the `Stream` into an `axum::body::HttpBody`
     let body = Body::from_stream(stream);
 
-    debug!("Mime: {}", mime);
     let headers = [
         (header::CONTENT_TYPE, mime),
         (
