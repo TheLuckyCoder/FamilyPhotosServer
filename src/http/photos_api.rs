@@ -17,6 +17,7 @@ use crate::http::utils::{file_to_response, write_field_to_file, AuthSession, Axu
 use crate::http::AppState;
 use crate::model::photo::{Photo, PhotoBase, PhotoBody};
 use crate::model::user::{User, PUBLIC_USER_ID};
+use crate::previews;
 use crate::utils::{internal_error, primitive_date_time_serde, read_exif};
 
 pub fn router(app_state: AppState) -> Router {
@@ -78,7 +79,6 @@ async fn preview_photo(
         storage,
         users_repo: _users_repo,
         photos_repo,
-        preview_manager,
     } = state;
 
     let photo = photos_repo.get_photo(photo_id).await?;
@@ -87,9 +87,13 @@ async fn preview_photo(
     let photo_path = storage.resolve_photo(photo.partial_path());
     let preview_path = storage.resolve_preview(photo.partial_preview_path());
 
-    let preview_generated = preview_manager
-        .request_previews(photo_id, photo_path.clone(), preview_path.clone())
-        .await;
+    let photo_path_clone = photo_path.clone();
+    let preview_path_clone = preview_path.clone();
+    let preview_generated = task::spawn_blocking(move || {
+        previews::generate_preview(photo_path_clone, preview_path_clone)
+    })
+    .await
+    .unwrap_or(false);
 
     let path = if preview_generated {
         preview_path
@@ -199,20 +203,7 @@ async fn upload_photo(
     }
 
     match state.photos_repo.insert_photo(&new_photo_body).await {
-        Ok(photo) => {
-            let preview_path = state.storage.resolve_preview(photo.partial_preview_path());
-            let photo_id = photo.id;
-
-            // Start generating the preview
-            task::spawn(async move {
-                state
-                    .preview_manager
-                    .request_previews(photo_id, photo_path, preview_path)
-                    .await;
-            });
-
-            Ok(Json(photo))
-        }
+        Ok(photo) => Ok(Json(photo)),
         Err(e) => {
             // Insertion failed, delete the file
             let _ = fs::remove_file(photo_path).await;

@@ -6,7 +6,7 @@ use futures_util::TryStreamExt;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
-use tracing::{debug, error};
+use tracing::error;
 
 use crate::http::utils::status_error::StatusError;
 use crate::repo::users_repo::UsersRepository;
