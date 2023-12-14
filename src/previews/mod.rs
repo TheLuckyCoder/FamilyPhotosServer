@@ -1,14 +1,12 @@
 use rayon::prelude::*;
 use tokio::task;
 
-use generate::*;
-pub use manager::*;
+pub use generate::*;
 
 use crate::http::AppState;
 use crate::model::photo::{Photo, PhotoBase};
 
 mod generate;
-mod manager;
 
 pub async fn generate_all_foreground(app_state: &AppState) -> Result<(), String> {
     let photos: Vec<Photo> = app_state
@@ -47,10 +45,7 @@ pub async fn generate_all_background(app_state: AppState) -> Result<(), String> 
                 .resolve_preview(photo.partial_preview_path());
 
             if photo_path.exists() {
-                app_state
-                    .preview_manager
-                    .request_previews(photo.id, photo_path, preview_path)
-                    .await;
+                generate_preview(photo_path, preview_path);
             }
         }
     });

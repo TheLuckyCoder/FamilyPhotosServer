@@ -14,7 +14,7 @@ use mime_guess::MimeGuess;
 use tracing::{error, info, warn};
 use wait_timeout::ChildExt;
 
-const PREVIEW_TARGET_SIZE: u32 = 500;
+const PREVIEW_TARGET_SIZE: u32 = 400;
 
 fn generate_heif_preview(load_path: &Path, save_path: &Path) -> anyhow::Result<bool> {
     let mut child = Command::new("heif-thumbnailer")
@@ -45,7 +45,7 @@ fn generate_video_frame<P: AsRef<Path>, R: AsRef<Path>>(
         .arg("-o")
         .arg(save_path.as_ref())
         .arg("-s")
-        .arg(stringify!(PREVIEW_TARGET_SIZE));
+        .arg(&format!("{PREVIEW_TARGET_SIZE}"));
 
     let mut child = command.spawn()?;
 
@@ -85,23 +85,26 @@ where
         return result.is_ok();
     }
 
-    if ext == "heic" || ext == "heif" {
-        return match generate_heif_preview(load_path.as_ref(), save_path.as_ref()) {
-            Ok(result) => result,
-            Err(e) => {
-                error!("Error generating heic/heif preview: {e}");
-                false
-            }
-        };
+    let mut child = Command::new("convert")
+        .arg("-auto-orient")
+        .arg(load_path.as_ref())
+        .arg(format!(
+            "-thumbnail '{PREVIEW_TARGET_SIZE}x{PREVIEW_TARGET_SIZE}^'"
+        ))
+        .arg(save_path.as_ref())
+        .spawn()
+        .unwrap();
+
+    match child.wait_timeout(Duration::from_secs(5)) {
+        Ok(status) => Ok(status.map_or(false, |s| s.success())),
+        Err(e) => {
+            child.kill().unwrap();
+            Err(e)
+        }
     }
+    .unwrap();
 
-    let exif_orientation = read_exif_orientation(load_path.as_ref());
-
-    if let Ok(img) = image::open(&load_path) {
-        return resize_and_save_image(&save_path, img, exif_orientation);
-    }
-
-    false
+    true
 }
 
 fn read_exif_orientation(path: &Path) -> Option<u32> {
@@ -119,6 +122,8 @@ fn read_exif_orientation(path: &Path) -> Option<u32> {
     if let Some(orientation) = reader.get_field(Tag::Orientation, In::PRIMARY) {
         return orientation.value.get_uint(0);
     }
+
+    // convert PXL_20231130_184007984.jpg -thumbnail '400x400^' thumbnail.jpg
 
     None
 }
