@@ -47,13 +47,10 @@ dotenvy = "0.15"
 walkdir = "2.4"
 mime_guess = "2"
 anyhow = "1"
+kamadak-exif = "0.5"
 
 # Crypto
 argon2 = { version = "0.5", features = ["std"] }
-
-# Images
-image = { version = "0.24", default-features = false, features = ["gif", "jpeg", "png", "webp", "hdr"] }
-kamadak-exif = "0.5"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = "0.5"
