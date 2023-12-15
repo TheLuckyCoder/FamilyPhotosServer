@@ -68,18 +68,7 @@ impl Photo {
     }
 
     pub fn partial_preview_path(&self) -> String {
-        let special_extension = match self.name.rsplit_once('.') {
-            None => None,
-            Some((_before, after)) => {
-                if after == "heic" || after == "heif" {
-                    Some("png")
-                } else {
-                    None
-                }
-            }
-        };
-
-        format!("{}.{}", self.id, special_extension.unwrap_or("jpg"))
+        format!("{}.jpg", self.id)
     }
 }
 

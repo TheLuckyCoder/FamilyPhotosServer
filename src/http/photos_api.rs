@@ -220,7 +220,7 @@ async fn delete_photo(
     let photo = state.photos_repo.get_photo(photo_id).await?;
     check_has_access(auth.user, &photo)?;
 
-    let _ = state.storage.delete_file(photo.partial_preview_path());
+    let _ = fs::remove_file(state.storage.resolve_preview(photo.partial_preview_path())).await;
 
     match state.storage.delete_file(photo.partial_path()) {
         Ok(_) => match state.photos_repo.delete_photo(photo_id).await {
