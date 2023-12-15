@@ -41,7 +41,7 @@ jobs:
         # dependencies are only needed on ubuntu as that's the only place where
         # we make cross-compilation
         if [[ $OS =~ ^ubuntu.*$ ]]; then
-          sudo apt-get install -qq crossbuild-essential-arm64
+          sudo apt-get update && sudo apt-get install -qq crossbuild-essential-arm64
         fi
         # some additional configuration for cross-compilation on linux
         cat >>~/.cargo/config <<EOF
@@ -55,7 +55,7 @@ jobs:
     - name: Build Release
       run: cargo build --release --verbose --target $TARGET
     - name: Upload Build Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: familyphotos-${{ matrix.TARGET }}
         path: target/${{ matrix.TARGET }}/release/familyphotos
