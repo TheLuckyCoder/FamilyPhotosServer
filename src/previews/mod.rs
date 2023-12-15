@@ -1,5 +1,6 @@
 use rayon::prelude::*;
 use tokio::task;
+use tracing::error;
 
 pub use generate::*;
 
@@ -22,7 +23,15 @@ pub async fn generate_all_foreground(app_state: &AppState) -> Result<(), String>
             .resolve_preview(photo.partial_preview_path());
 
         if photo_path.exists() && !preview_path.exists() {
-            generate_preview(photo_path, preview_path);
+            match generate_preview(&photo_path, preview_path) {
+                Ok(_) => {}
+                Err(e) => {
+                    error!(
+                        "Preview generation failed for video: {}\nCause: {e}",
+                        photo_path.display()
+                    )
+                }
+            }
         }
     });
 

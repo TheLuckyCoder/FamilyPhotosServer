@@ -93,17 +93,17 @@ async fn preview_photo(
         previews::generate_preview(photo_path_clone, preview_path_clone)
     })
     .await
-    .unwrap_or(false);
+    .unwrap();
 
-    let path = if preview_generated {
-        preview_path
-    } else {
-        error!(
-            "Failed to generate preview for photo {}: {}",
-            photo_id,
-            photo_path.display()
-        );
-        photo_path
+    let path = match preview_generated {
+        Ok(_) => preview_path,
+        Err(e) => {
+            error!(
+                "Preview generation failed for video: {}\nCause: {e}",
+                photo_path.display()
+            );
+            photo_path
+        }
     };
 
     file_to_response(&path).await
