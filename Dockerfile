@@ -32,7 +32,7 @@ FROM alpine:3.19
 
 ARG TARGET_ARCH
 
-RUN apk add --no-cache imagemagick ffmpegthumbnailer
+RUN apk add --no-cache imagemagick imagemagick-heic ffmpegthumbnailer
 
 COPY --from=builder /familyphotos/target/${TARGET_ARCH}/release/familyphotos .
 
