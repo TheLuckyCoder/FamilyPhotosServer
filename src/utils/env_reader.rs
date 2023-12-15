@@ -15,7 +15,6 @@ pub struct EnvVariables {
     pub storage_path: String,
     pub previews_path: Option<String>,
     pub scan_new_files: bool,
-    pub generate_previews_background: bool,
     pub auto_migrate_database: bool,
 }
 
@@ -37,7 +36,6 @@ impl EnvVariables {
             storage_path: required_env_var("STORAGE_PATH"),
             previews_path: std::env::var("PREVIEWS_PATH").ok(),
             scan_new_files: optional_env_var("SCAN_NEW_FILES", true),
-            generate_previews_background: optional_env_var("GENERATE_PREVIEWS_BACKGROUND", false),
             auto_migrate_database: optional_env_var("AUTO_MIGRATE_DATABASE", true),
         }
     }
