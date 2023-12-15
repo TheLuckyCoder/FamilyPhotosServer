@@ -87,13 +87,18 @@ async fn preview_photo(
     let photo_path = storage.resolve_photo(photo.partial_path());
     let preview_path = storage.resolve_preview(photo.partial_preview_path());
 
-    let photo_path_clone = photo_path.clone();
-    let preview_path_clone = preview_path.clone();
-    let preview_generated = task::spawn_blocking(move || {
-        previews::generate_preview(photo_path_clone, preview_path_clone)
-    })
-    .await
-    .unwrap();
+    let preview_generated = if !preview_path.exists() {
+        let photo_path_clone = photo_path.clone();
+        let preview_path_clone = preview_path.clone();
+
+        task::spawn_blocking(move || {
+            previews::generate_preview(photo_path_clone, preview_path_clone)
+        })
+        .await
+        .unwrap()
+    } else {
+        Ok(())
+    };
 
     let path = match preview_generated {
         Ok(_) => preview_path,
