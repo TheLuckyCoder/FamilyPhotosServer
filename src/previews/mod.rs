@@ -1,5 +1,4 @@
 use rayon::prelude::*;
-use tokio::task;
 use tracing::error;
 
 pub use generate::*;
@@ -9,7 +8,7 @@ use crate::model::photo::{Photo, PhotoBase};
 
 mod generate;
 
-pub async fn generate_all_foreground(app_state: &AppState) -> Result<(), String> {
+pub async fn generate_all_previews(app_state: &AppState) -> Result<(), String> {
     let photos: Vec<Photo> = app_state
         .photos_repo
         .get_photos()
@@ -31,30 +30,6 @@ pub async fn generate_all_foreground(app_state: &AppState) -> Result<(), String>
                         photo_path.display()
                     )
                 }
-            }
-        }
-    });
-
-    Ok(())
-}
-
-pub async fn generate_all_background(app_state: AppState) -> Result<(), String> {
-    let photos: Vec<Photo> = app_state
-        .photos_repo
-        .get_photos()
-        .await
-        .map_err(|_| "Could not load photos".to_string())?;
-
-    // We only use one thread for this as we don't want to take up the whole CPU
-    task::spawn(async move {
-        for photo in photos {
-            let photo_path = app_state.storage.resolve_photo(photo.partial_path());
-            let preview_path = app_state
-                .storage
-                .resolve_preview(photo.partial_preview_path());
-
-            if photo_path.exists() {
-                generate_preview(photo_path, preview_path);
             }
         }
     });

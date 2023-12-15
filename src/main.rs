@@ -1,15 +1,15 @@
-use anyhow::Context;
 use std::net::SocketAddr;
 use std::str::FromStr;
 
+use anyhow::Context;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::ConnectOptions;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 use tokio::net::TcpListener;
 use tower_sessions::PostgresStore;
+use tracing::info;
 use tracing::log::LevelFilter;
-use tracing::{error, info};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
@@ -82,14 +82,6 @@ async fn main() -> anyhow::Result<()> {
     // Scan the storage directory for new photos in the background
     if vars.scan_new_files {
         file_scan::scan_new_files(app_state.clone());
-    }
-
-    // Generate previews in background
-    if vars.generate_previews_background {
-        match previews::generate_all_background(app_state.clone()).await {
-            Ok(_) => info!("Background preview generation finished"),
-            Err(e) => error!("Could not start background preview generation: {e}"),
-        }
     }
 
     info!("Server listening on port {}", vars.server_port);

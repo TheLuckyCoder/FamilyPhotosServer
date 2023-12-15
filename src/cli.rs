@@ -151,7 +151,7 @@ async fn photos_commands(state: &AppState, command: PhotosCommand) {
                 .await
                 .expect("Failed to join task");
         }
-        PhotosCommand::GeneratePreviews => match previews::generate_all_foreground(state).await {
+        PhotosCommand::GeneratePreviews => match previews::generate_all_previews(state).await {
             Ok(_) => println!("Preview generation finished"),
             Err(e) => eprintln!("Preview generation failed: {e}"),
         },
