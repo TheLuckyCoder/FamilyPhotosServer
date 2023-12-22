@@ -45,7 +45,7 @@ async fn logout(mut auth: AuthSession) -> String {
     if let Some(user) = &auth.user {
         debug!("Logging out user: {}", user.id);
 
-        if let Err(e) = auth.logout() {
+        if let Err(e) = auth.logout().await {
             return e.to_string();
         }
     }
