@@ -20,8 +20,8 @@ async-trait = "0.1"
 axum = { version = "0.7", features = ["multipart"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["trace", "cors"] }
-axum-login = "0.11"
-tower-sessions = { version = "0.8", default-features = false, features = ["postgres-store"] }
+axum-login = "0.13"
+tower-sessions = { version = "0.10", default-features = false, features = ["postgres-store"] }
 
 # Logging
 tracing = "0.1"
