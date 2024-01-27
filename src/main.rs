@@ -7,7 +7,7 @@ use sqlx::ConnectOptions;
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 use tokio::net::TcpListener;
-use tower_sessions::PostgresStore;
+use tower_sessions_sqlx_store::PostgresStore;
 use tracing::info;
 use tracing::log::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
