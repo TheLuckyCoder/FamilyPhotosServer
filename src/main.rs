@@ -18,8 +18,8 @@ use crate::http::AppState;
 use crate::model::user::{User, PUBLIC_USER_ID};
 use crate::repo::users_repo::UsersRepository;
 use crate::utils::env_reader::EnvVariables;
-use crate::utils::file_storage::FileStorage;
 use crate::utils::password_hash::{generate_hash_from_password, generate_random_password};
+use crate::utils::storage_resolver::StorageResolver;
 
 mod cli;
 mod file_scan;
@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app_state = AppState::new(
         pool.clone(),
-        FileStorage::new(vars.storage_path, vars.previews_path),
+        StorageResolver::new(vars.storage_path, vars.previews_path),
     );
 
     let session_store = PostgresStore::new(pool);

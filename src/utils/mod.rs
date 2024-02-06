@@ -7,9 +7,9 @@ use std::io::BufReader;
 use std::path::Path;
 
 pub mod env_reader;
-pub mod file_storage;
 pub mod password_hash;
 pub mod primitive_date_time_serde;
+pub mod storage_resolver;
 
 #[derive(Debug, Serialize)]
 pub struct ExifField {

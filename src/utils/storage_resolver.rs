@@ -2,13 +2,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone)]
-pub struct FileStorage {
+pub struct StorageResolver {
     storage_folder: PathBuf,
     preview_folder: PathBuf,
 }
 
-impl FileStorage {
-    pub fn new(storage_path: String, preview_path: Option<String>) -> FileStorage {
+impl StorageResolver {
+    pub fn new(storage_path: String, preview_path: Option<String>) -> StorageResolver {
         let base_folder = PathBuf::from(storage_path);
 
         let preview_folder = preview_path.map(PathBuf::from).unwrap_or_else(|| {
@@ -35,7 +35,7 @@ impl FileStorage {
             assert!(preview_folder.is_dir());
         }
 
-        FileStorage {
+        StorageResolver {
             storage_folder: base_folder,
             preview_folder,
         }
@@ -49,7 +49,7 @@ impl FileStorage {
         self.preview_folder.join(relative.as_ref())
     }
 
-    pub fn move_file<P1: AsRef<Path>, P2: AsRef<Path>>(
+    pub fn move_photo<P1: AsRef<Path>, P2: AsRef<Path>>(
         &self,
         src_relative: P1,
         dest_relative: P2,
@@ -64,9 +64,5 @@ impl FileStorage {
         }
 
         fs::rename(self.resolve_photo(src_relative), destination_path)
-    }
-
-    pub fn delete_file<P: AsRef<Path>>(&self, relative: P) -> std::io::Result<()> {
-        fs::remove_file(self.resolve_photo(relative))
     }
 }

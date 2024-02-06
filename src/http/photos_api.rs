@@ -67,7 +67,9 @@ async fn photos_list(
         user.id.as_str()
     };
 
-    Ok(Json(state.photos_repo.get_photos_by_user(user_id).await?))
+    Ok(Json(
+        state.photos_repo.get_photos_dto_by_user(user_id).await?,
+    ))
 }
 
 async fn preview_photo(
@@ -227,7 +229,7 @@ async fn delete_photo(
 
     let _ = fs::remove_file(state.storage.resolve_preview(photo.partial_preview_path())).await;
 
-    match state.storage.delete_file(photo.partial_path()) {
+    match fs::remove_file(state.storage.resolve_photo(photo.partial_path())).await {
         Ok(_) => match state.photos_repo.delete_photo(photo_id).await {
             Ok(_count) => Ok("{\"deleted\": true}".to_string()),
             _ => Err(StatusError::create("Failed to remove photo from database")),
@@ -272,7 +274,7 @@ async fn change_photo_location(
     info!("Moving photo from {source_path} to {destination_path}");
 
     storage
-        .move_file(&source_path, &destination_path)
+        .move_photo(&source_path, &destination_path)
         .map_err(|e| StatusError::create(format!("Failed moving the photo: {e}")))?;
 
     state

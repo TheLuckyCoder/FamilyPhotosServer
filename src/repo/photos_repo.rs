@@ -30,6 +30,20 @@ impl PhotosRepository {
     pub async fn get_photos_by_user<T: AsRef<str>>(
         &self,
         user_id: T,
+    ) -> Result<Vec<Photo>, ErrorResponse> {
+        query_as!(
+            Photo,
+            "select * from photos where photos.user_id = $1 order by photos.created_at desc",
+            user_id.as_ref()
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(internal_error)
+    }
+
+    pub async fn get_photos_dto_by_user<T: AsRef<str>>(
+        &self,
+        user_id: T,
     ) -> Result<Vec<PhotoDto>, ErrorResponse> {
         query_as!(
             PhotoDto,

@@ -11,7 +11,7 @@ use walkdir::{DirEntry, WalkDir};
 
 use crate::file_scan::timestamp;
 use crate::model::photo::{Photo, PhotoBase, PhotoBody};
-use crate::{AppState, FileStorage, User};
+use crate::{AppState, StorageResolver, User};
 
 pub struct DataScan {
     results: Vec<(User, Vec<PhotoBody>)>,
@@ -37,7 +37,7 @@ impl DataScan {
         })
     }
 
-    fn scan(users: Vec<User>, storage: &FileStorage) -> Self {
+    fn scan(users: Vec<User>, storage: &StorageResolver) -> Self {
         debug!(
             "Started scanning user's photos: {:?}",
             users.iter().map(|user| user.id.clone()).collect::<Vec<_>>()
@@ -51,7 +51,7 @@ impl DataScan {
         Self { results }
     }
 
-    fn scan_user_photos(storage: &FileStorage, user: User) -> (User, Vec<PhotoBody>) {
+    fn scan_user_photos(storage: &StorageResolver, user: User) -> (User, Vec<PhotoBody>) {
         let mut photos = Vec::with_capacity(8192 * 4);
 
         let user_path = storage.resolve_photo(&user.id);
@@ -106,16 +106,16 @@ impl DataScan {
         let storage = &app_state.storage;
         let photos_repo = &app_state.photos_repo;
 
-        let existing_photos: Vec<Photo> = photos_repo
-            .get_photos()
-            .await
-            .expect("Failed to get photos");
-        let existing_photos_names: Vec<String> = existing_photos
-            .iter()
-            .map(|photo| photo.full_name())
-            .collect();
-
         for (user, mut found_photos) in self.results {
+            let existing_photos: Vec<Photo> = photos_repo
+                .get_photos_by_user(&user.id)
+                .await
+                .expect("Failed to get user photos");
+            let existing_photos_names: Vec<String> = existing_photos
+                .iter()
+                .map(|photo| photo.full_name())
+                .collect();
+
             info!("Scanned {} photos in user {}", found_photos.len(), user.id);
 
             // Add any photo that was not already in the db
@@ -139,12 +139,7 @@ impl DataScan {
 
             let removed_photos = existing_photos
                 .iter()
-                .filter(|photo| {
-                    photo.user_id() == &user.id
-                        && !storage
-                            .resolve_photo(format!("{}/{}", user.id, photo.full_name()))
-                            .exists()
-                })
+                .filter(|photo| !storage.resolve_photo(photo.partial_path()).exists())
                 .map(|photo| photo.id())
                 .collect::<Vec<i64>>();
 

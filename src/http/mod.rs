@@ -1,11 +1,9 @@
 use axum::extract::DefaultBodyLimit;
-use axum::http::StatusCode;
 use axum::routing::get;
 use axum::Router;
-use axum_login::tower_sessions::{Expiry, SessionManagerLayer};
+use axum_login::tower_sessions::SessionManagerLayer;
 use axum_login::AuthManagerLayerBuilder;
 use sqlx::PgPool;
-use time::Duration;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{cors, trace};
@@ -14,7 +12,7 @@ use tracing::Level;
 
 use crate::repo::photos_repo::PhotosRepository;
 use crate::repo::users_repo::UsersRepository;
-use crate::utils::file_storage::FileStorage;
+use crate::utils::storage_resolver::StorageResolver;
 
 mod photos_api;
 mod users_api;
@@ -42,13 +40,13 @@ pub fn router(app_state: AppState, session_store: PostgresStore) -> Router {
 
 #[derive(Clone)]
 pub struct AppState {
-    pub storage: FileStorage,
+    pub storage: StorageResolver,
     pub users_repo: UsersRepository,
     pub photos_repo: PhotosRepository,
 }
 
 impl AppState {
-    pub fn new(pool: PgPool, storage: FileStorage) -> Self {
+    pub fn new(pool: PgPool, storage: StorageResolver) -> Self {
         Self {
             storage,
             users_repo: UsersRepository::new(pool.clone()),
