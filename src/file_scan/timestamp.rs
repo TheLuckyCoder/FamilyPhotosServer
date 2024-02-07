@@ -50,14 +50,7 @@ impl GooglePhotoJsonData {
 }
 
 fn get_json_timestamp(path: &Path) -> Option<u64> {
-    let json_file_name = std::format!(
-        "{}.{}.json",
-        path.file_stem()?
-            .to_string_lossy()
-            .trim_end_matches("(1)")
-            .trim(),
-        path.extension()?.to_str()?
-    );
+    let json_file_name = format!("{}.json", path.to_string_lossy());
 
     let file = fs::File::open(&json_file_name).ok()?;
     let reader = BufReader::new(file);

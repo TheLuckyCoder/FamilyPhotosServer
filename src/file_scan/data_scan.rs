@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use time::PrimitiveDateTime;
 use tokio::task;
 use tokio::task::JoinHandle;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 use walkdir::{DirEntry, WalkDir};
 
 use crate::file_scan::timestamp;
@@ -130,10 +130,9 @@ impl DataScan {
                 );
 
                 for chunk in found_photos.chunks(512) {
-                    photos_repo
-                        .insert_photos(chunk)
-                        .await
-                        .expect("Failed to insert photos");
+                    if let Err(e) = photos_repo.insert_photos(chunk).await {
+                        error!("Failed inserting photos: {}", e.to_string())
+                    }
                 }
             }
 
@@ -150,11 +149,9 @@ impl DataScan {
                     user.id
                 );
 
-                app_state
-                    .photos_repo
-                    .delete_photos(&removed_photos)
-                    .await
-                    .expect("Failed to delete photo");
+                if let Err(e) = app_state.photos_repo.delete_photos(&removed_photos).await {
+                    error!("Failed deleting photos: {}", e.to_string())
+                }
             }
         }
     }

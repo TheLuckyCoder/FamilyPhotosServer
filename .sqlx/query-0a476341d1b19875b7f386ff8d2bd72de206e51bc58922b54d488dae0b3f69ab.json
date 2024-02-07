@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "delete from photos where id = (select * from UNNEST($1::int8[]))",
+  "query": "delete from photos where id in (select * from UNNEST($1::int8[]))",
   "describe": {
     "columns": [],
     "parameters": {
@@ -10,5 +10,5 @@
     },
     "nullable": []
   },
-  "hash": "8b69e27423243cfaca3d56c5462f7b52547d71228cd996e37e0a00f04042306f"
+  "hash": "0a476341d1b19875b7f386ff8d2bd72de206e51bc58922b54d488dae0b3f69ab"
 }

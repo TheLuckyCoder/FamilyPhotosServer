@@ -72,7 +72,7 @@ impl PhotosRepository {
         .map_err(internal_error)
     }
 
-    pub async fn insert_photos(&self, photos: &[PhotoBody]) -> Result<(), ErrorResponse> {
+    pub async fn insert_photos(&self, photos: &[PhotoBody]) -> Result<(), sqlx::Error> {
         let mut query_builder: QueryBuilder<Postgres> =
             QueryBuilder::new("insert into photos (user_id, name, created_at, file_size, folder) ");
 
@@ -84,13 +84,7 @@ impl PhotosRepository {
                 .push_bind(photo.folder_name());
         });
 
-        query_builder
-            .build()
-            .execute(&self.pool)
-            .await
-            .map_err(internal_error)?;
-
-        Ok(())
+        query_builder.build().execute(&self.pool).await.map(|_| ())
     }
 
     pub async fn insert_favorite<T: AsRef<str>>(
@@ -149,14 +143,13 @@ impl PhotosRepository {
             .map_err(internal_error)
     }
 
-    pub async fn delete_photos(&self, photo_ids: &[i64]) -> Result<(), ErrorResponse> {
+    pub async fn delete_photos(&self, photo_ids: &[i64]) -> Result<(), sqlx::Error> {
         query!(
-            "delete from photos where id = (select * from UNNEST($1::int8[]))",
+            "delete from photos where id in (select * from UNNEST($1::int8[]))",
             photo_ids
         )
         .execute(&self.pool)
         .await
         .map(|_| ())
-        .map_err(internal_error)
     }
 }
