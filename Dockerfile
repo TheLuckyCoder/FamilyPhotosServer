@@ -4,9 +4,7 @@ FROM rust:1.76-bookworm as builder
 
 ARG TARGET_ARCH
 
-RUN apt-get update && \
-    apt-get install -y \
-    musl-tools
+RUN apt-get update && apt-get install -y musl-tools
 
 RUN rustup target add $TARGET_ARCH
 
