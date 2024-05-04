@@ -1,15 +1,25 @@
-{ 
-  "extends": [ 
-    "config:base" 
-  ], 
-  "baseBranches": ["main"], 
-  "packageRules": [ 
-    { 
-      "matchUpdateTypes": ["minor", "patch", "pin", "digest"], 
-      "automerge": true, 
-      "matchPackagePatterns": ["*"], 
-      "groupName": "all non-major dependencies", 
-      "groupSlug": "all-minor-patch" 
+{
+  "extends": [
+    "config:base",
+    ":preserveSemverRanges",
+    ":rebaseStalePrs"
+  ],
+  "baseBranches": [
+    "main"
+  ],
+  "packageRules": [
+    {
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "automerge": false,
+      "matchPackagePatterns": [
+        "*"
+      ],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch"
     }
   ]
- }
+}
