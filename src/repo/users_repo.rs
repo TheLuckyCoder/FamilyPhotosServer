@@ -4,6 +4,7 @@ use argon2::password_hash;
 use async_trait::async_trait;
 use axum_login::{AuthnBackend, UserId};
 use sqlx::{query, query_as, Error, PgPool};
+use tokio::task;
 
 #[derive(Clone)]
 pub struct UsersRepository {
@@ -63,9 +64,17 @@ impl AuthnBackend for UsersRepository {
         creds: Self::Credentials,
     ) -> Result<Option<Self::User>, Self::Error> {
         if let Some(user) = self.get_user(creds.user_id).await {
-            if validate_credentials(creds.password, &user.password_hash)? {
-                return Ok(Some(user));
-            }
+            return task::spawn_blocking(|| {
+                Ok(
+                    if validate_credentials(creds.password, &user.password_hash)? {
+                        Some(user)
+                    } else {
+                        None
+                    },
+                )
+            })
+            .await
+            .expect("Password verification failed unexpectedly");
         }
 
         Ok(None)

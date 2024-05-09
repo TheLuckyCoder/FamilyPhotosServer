@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 
 use anyhow::Context;
+use axum_login::tower_sessions::ExpiredDeletion;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::ConnectOptions;
 #[cfg(not(target_env = "msvc"))]
@@ -65,11 +66,14 @@ async fn main() -> anyhow::Result<()> {
         StorageResolver::new(vars.storage_path, vars.previews_path),
     );
 
+    // Migrate the sessions store and delete expired sessions
     let session_store = PostgresStore::new(pool);
     session_store
         .migrate()
         .await
         .expect("Failed to run schema migration for authentication");
+
+    session_store.delete_expired().await?;
 
     // Create default public user
     create_public_user(&app_state.users_repo).await?;

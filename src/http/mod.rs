@@ -1,9 +1,10 @@
 use axum::extract::DefaultBodyLimit;
 use axum::routing::get;
 use axum::Router;
-use axum_login::tower_sessions::SessionManagerLayer;
+use axum_login::tower_sessions::{Expiry, SessionManagerLayer};
 use axum_login::AuthManagerLayerBuilder;
 use sqlx::PgPool;
+use time::Duration;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{cors, trace};
@@ -19,7 +20,8 @@ mod users_api;
 mod utils;
 
 pub fn router(app_state: AppState, session_store: PostgresStore) -> Router {
-    let session_layer = SessionManagerLayer::new(session_store);
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_expiry(Expiry::OnInactivity(Duration::days(90)));
 
     let auth_layer =
         AuthManagerLayerBuilder::new(app_state.users_repo.clone(), session_layer).build();
