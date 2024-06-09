@@ -1,5 +1,4 @@
 use exif::{Field, In, Tag, Value};
-use lazy_static::lazy_static;
 use mime_guess::MimeGuess;
 use regex::Regex;
 use serde::Deserialize;
@@ -7,6 +6,7 @@ use std::fs;
 use std::io::BufReader;
 use std::path::Path;
 use std::str::from_utf8;
+use std::sync::OnceLock;
 use time::macros::format_description;
 use time::{OffsetDateTime, PrimitiveDateTime};
 use tracing::error;
@@ -120,16 +120,18 @@ fn get_exif_timestamp(path: &Path) -> Option<PrimitiveDateTime> {
 }
 
 fn get_regex_timestamp<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
-    lazy_static! {
-        static ref DATE_HOUR_PATTERN: Regex
-            = Regex::new(r"(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})").unwrap(); // 2016-09-22-16-19-41
-        static ref DATE_PATTERN: Regex = Regex::new(r"(\d{8})").unwrap();
-        static ref MILLIS_PATTERN: Regex = Regex::new(r".*(\d{13})").unwrap();
-    }
-
+    // TODO Migrate to LazyCell when it becomes stable
+    static DATE_HOUR_PATTERN: OnceLock<Regex> = OnceLock::new();
+    static DATE_PATTERN: OnceLock<Regex> = OnceLock::new();
+    static MILLIS_PATTERN: OnceLock<Regex> = OnceLock::new();
+    
+    let date_hour_pattern_init = || Regex::new(r"(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})").unwrap();
+    let date_pattern_init = || Regex::new(r"(\d{4})\D?(\d{2})\D?(\d{2})").unwrap();
+    let millis_pattern_init = || Regex::new(r".*(\d{13})").unwrap();
+    
     let name = path.as_ref().file_stem()?.to_string_lossy().to_string();
 
-    if let Some(capture) = DATE_HOUR_PATTERN.captures(&name) {
+    if let Some(capture) = DATE_HOUR_PATTERN.get_or_init(date_hour_pattern_init).captures(&name) {
         let year = &capture[1];
         let month = &capture[2];
         let day = &capture[3];
@@ -148,17 +150,19 @@ fn get_regex_timestamp<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
         }
     }
 
-    if let Some(capture) = DATE_PATTERN.captures(&name) {
-        let date = &capture[1];
+    if let Some(capture) = DATE_PATTERN.get_or_init(date_pattern_init).captures(&name) {
+        let year = &capture[1];
+        let month = &capture[2];
+        let day = &capture[3];
         if let Ok(parsed_time) = PrimitiveDateTime::parse(
-            format!("{date} 000000").as_str(),
+            format!("{year}{month}{day} 000000").as_str(),
             format_description!("[year][month][day] [hour][minute][second]"),
         ) {
             return Some(parsed_time);
         }
     }
 
-    if let Some(capture) = MILLIS_PATTERN.captures(&name) {
+    if let Some(capture) = MILLIS_PATTERN.get_or_init(millis_pattern_init).captures(&name) {
         let millis: i64 = capture[1].parse().ok()?;
         let seconds = millis / 1000;
         if let Ok(parsed_time) = OffsetDateTime::from_unix_timestamp(seconds) {
@@ -195,6 +199,16 @@ mod tests {
         assert_eq!(
             get_regex_timestamp("20160922.jpg"),
             Some(datetime!(2016-09-22 00:00:00))
+        );
+
+        assert_eq!(
+            get_regex_timestamp("2016_09_22.jpg"),
+            Some(datetime!(2016-09-22 00:00:00))
+        );
+
+        assert_eq!(
+            get_regex_timestamp("2016__09_22.jpg"),
+            None
         );
 
         assert_eq!(
