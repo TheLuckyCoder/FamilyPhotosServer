@@ -50,7 +50,7 @@ rand = "0.8"
 argon2 = { version = "0.5", features = ["std"] }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-tikv-jemallocator = "0.5"
+tikv-jemallocator = "0.6"
 
 [profile.dev.package.sqlx-macros]
 opt-level = 3
