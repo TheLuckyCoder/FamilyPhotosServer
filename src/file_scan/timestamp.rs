@@ -6,7 +6,7 @@ use std::fs;
 use std::io::BufReader;
 use std::path::Path;
 use std::str::from_utf8;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 use time::macros::format_description;
 use time::{OffsetDateTime, PrimitiveDateTime};
 use tracing::error;
@@ -120,18 +120,13 @@ fn get_exif_timestamp(path: &Path) -> Option<PrimitiveDateTime> {
 }
 
 fn get_regex_timestamp<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
-    // TODO Migrate to LazyCell when it becomes stable
-    static DATE_HOUR_PATTERN: OnceLock<Regex> = OnceLock::new();
-    static DATE_PATTERN: OnceLock<Regex> = OnceLock::new();
-    static MILLIS_PATTERN: OnceLock<Regex> = OnceLock::new();
-    
-    let date_hour_pattern_init = || Regex::new(r"(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})").unwrap();
-    let date_pattern_init = || Regex::new(r"(\d{4})\D?(\d{2})\D?(\d{2})").unwrap();
-    let millis_pattern_init = || Regex::new(r".*(\d{13})").unwrap();
-    
+    static DATE_HOUR_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})").unwrap());
+    static DATE_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{4})\D?(\d{2})\D?(\d{2})").unwrap());
+    static MILLIS_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r".*(\d{13})").unwrap());
+
     let name = path.as_ref().file_stem()?.to_string_lossy().to_string();
 
-    if let Some(capture) = DATE_HOUR_PATTERN.get_or_init(date_hour_pattern_init).captures(&name) {
+    if let Some(capture) = DATE_HOUR_PATTERN.captures(&name) {
         let year = &capture[1];
         let month = &capture[2];
         let day = &capture[3];
@@ -150,7 +145,7 @@ fn get_regex_timestamp<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
         }
     }
 
-    if let Some(capture) = DATE_PATTERN.get_or_init(date_pattern_init).captures(&name) {
+    if let Some(capture) = DATE_PATTERN.captures(&name) {
         let year = &capture[1];
         let month = &capture[2];
         let day = &capture[3];
@@ -162,7 +157,7 @@ fn get_regex_timestamp<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
         }
     }
 
-    if let Some(capture) = MILLIS_PATTERN.get_or_init(millis_pattern_init).captures(&name) {
+    if let Some(capture) = MILLIS_PATTERN.captures(&name) {
         let millis: i64 = capture[1].parse().ok()?;
         let seconds = millis / 1000;
         if let Ok(parsed_time) = OffsetDateTime::from_unix_timestamp(seconds) {
