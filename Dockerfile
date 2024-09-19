@@ -1,6 +1,6 @@
 ARG TARGET_ARCH=x86_64-unknown-linux-musl
 
-FROM rust:1.80-bookworm as builder
+FROM rust:1.81-bookworm as builder
 
 ARG TARGET_ARCH
 
