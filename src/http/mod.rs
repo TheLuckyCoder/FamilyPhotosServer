@@ -5,6 +5,7 @@ use axum_login::tower_sessions::{Expiry, SessionManagerLayer};
 use axum_login::AuthManagerLayerBuilder;
 use sqlx::PgPool;
 use time::Duration;
+use tokio::signal;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{cors, trace};
@@ -37,7 +38,7 @@ pub fn router(app_state: AppState, session_store: PostgresStore) -> Router {
         )
         .layer(CorsLayer::new().allow_origin(cors::Any))
         .layer(auth_layer)
-        .layer(DefaultBodyLimit::max(2 * 1024 * 1024 * 1024)) // 2GB
+        .layer(DefaultBodyLimit::max(1024 * 1024 * 1024)) // 1GB
 }
 
 #[derive(Clone)]
@@ -54,5 +55,26 @@ impl AppState {
             users_repo: UsersRepository::new(pool.clone()),
             photos_repo: PhotosRepository::new(pool),
         }
+    }
+}
+
+
+pub async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
     }
 }

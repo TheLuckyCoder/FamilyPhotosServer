@@ -90,11 +90,14 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Server listening on port {}", vars.server_port);
 
-    let http_service = http::router(app_state, session_store).into_make_service();
+    let http_service = http::router(app_state, session_store)
+        .into_make_service();
     let addr = SocketAddr::from(([127, 0, 0, 1], vars.server_port));
     let listener = TcpListener::bind(addr).await?;
 
-    Ok(axum::serve(listener, http_service).await?)
+    axum::serve(listener, http_service)
+        .with_graceful_shutdown(http::shutdown_signal())
+        .await.context("Failed to start server")
 }
 
 async fn create_public_user(repo: &UsersRepository) -> anyhow::Result<()> {

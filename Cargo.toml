@@ -10,7 +10,7 @@ lto = "fat"
 
 [dependencies]
 # Async Runtime
-tokio = { version = "1", features = ["rt-multi-thread", "fs", "io-std", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "fs", "io-std", "macros", "signal"] }
 tokio-util = { version = "0.7", features = ["io"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 rayon = "1.10"
