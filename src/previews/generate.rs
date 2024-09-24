@@ -59,8 +59,7 @@ where
         .arg("-thumbnail")
         .arg(format!("{PREVIEW_TARGET_SIZE}x{PREVIEW_TARGET_SIZE}^"))
         .arg(save_path.as_ref())
-        .spawn()
-        .unwrap();
+        .spawn().context("Failed to start 'convert' command")?;
 
     match child.wait_timeout(Duration::from_secs(5)) {
         Ok(status) => status.map(|_| ()).context("Failed to get exit status"),
