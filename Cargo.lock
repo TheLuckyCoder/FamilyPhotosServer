@@ -898,9 +898,9 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
 name = "kamadak-exif"
-version = "0.5.5"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef4fc70d0ab7e5b6bafa30216a6b48705ea964cdfc29c050f2412295eba58077"
+checksum = "99e7b00ff45df279c3e40f7fee99fad4f7eddbf9ed2d24e99133e8683330f0c7"
 dependencies = [
  "mutate_once",
 ]

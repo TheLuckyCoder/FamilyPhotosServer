@@ -43,7 +43,7 @@ dotenvy = "0.15"
 walkdir = "2.5"
 mime_guess = "2"
 anyhow = "1"
-kamadak-exif = "0.5"
+kamadak-exif = "0.6"
 rand = "0.8"
 
 # Crypto
