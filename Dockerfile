@@ -1,6 +1,6 @@
 ARG TARGET_ARCH=x86_64-unknown-linux-musl
 
-FROM rust:1.82-bookworm as builder
+FROM rust:1.83-bookworm as builder
 
 ARG TARGET_ARCH
 
@@ -26,7 +26,7 @@ COPY . .
 RUN rm ./target/${TARGET_ARCH}/release/deps/familyphotos*
 RUN cargo build --release --target ${TARGET_ARCH}
 
-FROM alpine:3.20
+FROM alpine:3.21
 
 ARG TARGET_ARCH
 
