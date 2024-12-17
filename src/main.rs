@@ -1,12 +1,9 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
-
 use anyhow::Context;
 use axum_login::tower_sessions::ExpiredDeletion;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::ConnectOptions;
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
 use tokio::net::TcpListener;
 use tower_sessions_sqlx_store::PostgresStore;
 use tracing::info;
@@ -30,10 +27,6 @@ mod previews;
 mod repo;
 mod utils;
 
-#[cfg(not(target_env = "msvc"))]
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Environment Variables
@@ -52,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Database pool and app state
     let pool = PgPoolOptions::new()
-        .max_connections(128)
+        .max_connections(32)
         .connect_with(connect_options)
         .await
         .expect("Error building the connection pool");

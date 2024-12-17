@@ -1,7 +1,7 @@
 [package]
 name = "familyphotos"
 authors = ["Filea Răzvan-Gheorghe <razvan.filea@gmail.com>"]
-version = "3.2.2"
+version = "3.2.3"
 edition = "2021"
 
 [profile.release]
@@ -48,9 +48,6 @@ rand = "0.8"
 
 # Crypto
 argon2 = { version = "0.5", features = ["std"] }
-
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
-tikv-jemallocator = "0.6"
 
 [profile.dev.package.sqlx-macros]
 opt-level = 3
