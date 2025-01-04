@@ -34,7 +34,7 @@ pub struct Photo {
     pub id: i64,
     pub user_id: String,
     pub name: String,
-    #[serde(with = "timestamp::milliseconds")]
+    #[serde(with = "timestamp")]
     pub created_at: OffsetDateTime,
     pub file_size: i64,
     pub folder: Option<String>,
@@ -131,7 +131,7 @@ pub struct PhotoDto {
     pub id: i64,
     pub user_id: String,
     pub name: String,
-    #[serde(with = "timestamp::milliseconds")]
+    #[serde(with = "timestamp")]
     pub created_at: OffsetDateTime,
     pub file_size: i64,
     pub folder: Option<String>,
