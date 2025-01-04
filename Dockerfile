@@ -3,7 +3,7 @@ ARG TARGET_ARCH=x86_64-unknown-linux-musl
 FROM rust:1.83-alpine AS base
 USER root
 
-RUN apk add --no-cache npm musl-dev
+RUN apk add --no-cache musl-dev
 
 ARG TARGET_ARCH
 RUN rustup target add $TARGET_ARCH

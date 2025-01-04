@@ -10,7 +10,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{cors, trace};
 use tower_sessions_sqlx_store::SqliteStore;
-use tracing::Level;
+use tracing::{warn, Level};
 
 use crate::repo::photos_repo::PhotosRepository;
 use crate::repo::users_repo::UsersRepository;
@@ -58,12 +58,11 @@ impl AppState {
     }
 }
 
-
 pub async fn shutdown_signal() {
     let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("Failed to install Ctrl+C handler");
+        if let Err(e) = signal::ctrl_c().await {
+            warn!("Failed to install Ctrl+C handler: {e}")
+        }
     };
 
     let terminate = async {

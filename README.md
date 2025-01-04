@@ -3,12 +3,12 @@
 An open source self-hosted photo and video server for your family written in Rust.
 
 ## How to set up
-An empty Postgres Database must be set up be it, either as a system library or Docker image.<br>
+Build the docker image, set up the environment variables and run the image.<br>
 
-It's also expected that you run a proxy like Nginx to handle load balancing and TLS.
+It's expected that you run a proxy like Nginx to handle TLS if you need it.
 
 ### Docker
-Clone the repository and run the following command to build a docker image (for the x86_64 architecture):
+Clone the repository and run the following command to build a docker image:
 ```shell
 docker build -t familyphotos .
 ```
@@ -17,22 +17,18 @@ docker build -t familyphotos .
 Here is an example of a Docker compose file
 
 ```
-version: '3'
-
 services:
    familyphotos:
      container_name: familyphotos
      image: familyphotos
      volumes:
-       - /path/to/photos/folder/:/opt/photos/
+       - /path/to/photos/folder/:/mnt/photos/
      restart: always
-     network_mode: "host"
+     ports:
+        8080:80
      environment:
-       SCAN_NEW_FILES: true
-       RUST_LOG: info
-       SERVER_PORT: 3000
-       DATABASE_URL: postgres://username:password@localhost/database?sslmode=disable
-       STORAGE_PATH: /opt/photos/
+       SERVER_PORT: 80
+       STORAGE_PATH: /mnt/photos/
 ```
 
 Below you can see all the environment variables that can be configured
@@ -40,12 +36,10 @@ Below you can see all the environment variables that can be configured
 ### Env Variables
 Variables in bold **must** be specified.
 - **SERVER_PORT**: The port the server should listen on
-- **DATABASE_URL** (eg: postgres://username:password@localhost/database?sslmode=disable)
 - **STORAGE_PATH**: The path to the folder where the photos will be stored
-- PREVIEWS_PATH: Alternative storage path for photo previews (this is useful for example when you want to store the photos on an HDD but the previes on an SSD so that they load faster) [default: in STORAGE_PATH/.preview]
+- DATABASE_PATH: Alternative path for the database. Must have the format "sqlite:://path/to/database.db" [default: in ${STORAGE_PATH}/.familyphotos.db]
+- PREVIEWS_PATH: Alternative storage path for photo previews (this, for example is useful when you want to store the photos on an HDD but the previews on an SSD) [default: in ${STORAGE_PATH}/.preview]
 - SCAN_NEW_FILES: Scan the storage for external changes at startup [default: true]
-- GENERATE_PREVIEWS_BACKGROUND: Generate previews for all photos on background thread (on startup), as opposed to only lazily generating when needed [default: false]
-- RUST_LOG: Specifies the log level, it's recommended to set it to info [default: none]
 
 ### Creating user accounts
 On your first run, the server will generate a user account with the username "public" and a random password that will be printed in the console.<br>
@@ -56,7 +50,7 @@ familyphotos user create -u <user_name> -d <display_name> [-p <password>]
 ```
 This will generate a new user with the given username, display name and password or a random one if not provided.<br>
 
-### Example Nginx Config
+### Example Nginx Config with HTTPS
 ```
 http {
     upstream familyphotos {
@@ -99,6 +93,8 @@ http {
 ## Folder structure
 The server will generate the following folder structure in the STORAGE_PATH folder:
 ```
+├───.familyphotos.db # Database (if not specified elsewhere)
+│
 ├───.preview/ # Folder for previews (if not specified elsewhere)
 │
 ├───public/ # The folder of the "public" user, alas photos who belong to everyone

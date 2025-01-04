@@ -38,7 +38,7 @@ impl EnvVariables {
 
         let database_path = std::env::var("DATABASE_PATH")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| storage_path.join("familyphotos.db"));
+            .unwrap_or_else(|_| storage_path.join(".familyphotos.db"));
         
         if database_path.exists() && !database_path.is_file() {
             panic!("DATABASE_PATH must be a file!")
