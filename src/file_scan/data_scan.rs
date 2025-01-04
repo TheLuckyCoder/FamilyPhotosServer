@@ -3,7 +3,6 @@ use std::fs;
 use std::time::Instant;
 
 use rayon::prelude::*;
-use time::PrimitiveDateTime;
 use tokio::task;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
@@ -81,24 +80,21 @@ impl DataScan {
     pub fn parse_image(user_name: String, entry: DirEntry) -> Option<PhotoBody> {
         let path = entry.path();
 
-        let timestamp = timestamp::get_timestamp_for_path(path);
-
-        match timestamp {
-            Some(date_time) => Some(PhotoBody::new(
+        if let Some(timestamp) = timestamp::get_timestamp_for_path(path) {
+            Some(PhotoBody::new(
                 user_name,
                 entry.file_name().to_string_lossy().to_string(),
-                PrimitiveDateTime::new(date_time.date(), date_time.time()),
+                timestamp,
                 fs::metadata(path).map_or(0i64, |data| data.len() as i64),
                 if entry.depth() == 2 {
                     Some(path.parent()?.file_name()?.to_string_lossy().to_string())
                 } else {
                     None
                 },
-            )),
-            None => {
-                warn!("No timestamp: {}", path.display());
-                None
-            }
+            ))
+        } else {
+            warn!("No timestamp: {}", path.display());
+            None
         }
     }
 

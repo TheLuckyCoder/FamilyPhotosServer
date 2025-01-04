@@ -1,14 +1,14 @@
 use serde::Serialize;
-use time::PrimitiveDateTime;
+use time::OffsetDateTime;
 
-use crate::utils::primitive_date_time_serde;
+use time::serde::timestamp;
 
 pub trait PhotoBase {
     fn user_id(&self) -> &String;
 
     fn name(&self) -> &String;
 
-    fn created_at(&self) -> PrimitiveDateTime;
+    fn created_at(&self) -> OffsetDateTime;
 
     fn file_size(&self) -> i64;
 
@@ -28,14 +28,14 @@ pub trait PhotoBase {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Photo {
     pub id: i64,
     pub user_id: String,
     pub name: String,
-    #[serde(with = "primitive_date_time_serde")]
-    pub created_at: PrimitiveDateTime,
+    #[serde(with = "timestamp::milliseconds")]
+    pub created_at: OffsetDateTime,
     pub file_size: i64,
     pub folder: Option<String>,
 }
@@ -49,7 +49,7 @@ impl PhotoBase for Photo {
         &self.name
     }
 
-    fn created_at(&self) -> PrimitiveDateTime {
+    fn created_at(&self) -> OffsetDateTime {
         self.created_at
     }
 
@@ -76,7 +76,7 @@ impl Photo {
 pub struct PhotoBody {
     user_name: String,
     name: String,
-    created_at: PrimitiveDateTime,
+    created_at: OffsetDateTime,
     file_size: i64,
     folder: Option<String>,
 }
@@ -90,7 +90,7 @@ impl PhotoBase for PhotoBody {
         &self.name
     }
 
-    fn created_at(&self) -> PrimitiveDateTime {
+    fn created_at(&self) -> OffsetDateTime {
         self.created_at
     }
 
@@ -107,7 +107,7 @@ impl PhotoBody {
     pub fn new(
         user_name: String,
         name: String,
-        created_at: PrimitiveDateTime,
+        created_at: OffsetDateTime,
         file_size: i64,
         folder: Option<String>,
     ) -> Self {
@@ -125,14 +125,14 @@ impl PhotoBody {
     }
 }
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PhotoDto {
     pub id: i64,
     pub user_id: String,
     pub name: String,
-    #[serde(with = "primitive_date_time_serde")]
-    pub created_at: PrimitiveDateTime,
+    #[serde(with = "timestamp::milliseconds")]
+    pub created_at: OffsetDateTime,
     pub file_size: i64,
     pub folder: Option<String>,
     pub is_favorite: bool,

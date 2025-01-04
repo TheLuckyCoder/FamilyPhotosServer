@@ -9,6 +9,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use time::OffsetDateTime;
 use tokio::{fs, task};
 use tracing::{error, info};
 
@@ -18,7 +19,8 @@ use crate::http::AppState;
 use crate::model::photo::{Photo, PhotoBase, PhotoBody};
 use crate::model::user::{User, PUBLIC_USER_ID};
 use crate::previews;
-use crate::utils::{internal_error, primitive_date_time_serde, read_exif};
+use crate::utils::{internal_error, read_exif};
+use time::serde::timestamp;
 
 pub fn router(app_state: AppState) -> Router {
     Router::new()
@@ -154,8 +156,8 @@ async fn get_photo_exif(
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct UploadDataQuery {
-    #[serde(with = "primitive_date_time_serde")]
-    time_created: time::PrimitiveDateTime,
+    #[serde(with = "timestamp::milliseconds")]
+    time_created: OffsetDateTime,
     folder_name: Option<String>,
     #[serde(default)]
     make_public: bool,

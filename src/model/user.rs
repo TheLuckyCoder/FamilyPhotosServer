@@ -1,7 +1,7 @@
 use axum_login::AuthUser;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct User {
     pub id: String,
     pub name: String,

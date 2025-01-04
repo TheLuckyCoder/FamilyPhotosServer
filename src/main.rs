@@ -1,13 +1,12 @@
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::time::Duration;
 use anyhow::Context;
 use axum_login::tower_sessions::ExpiredDeletion;
-use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
-use sqlx::ConnectOptions;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use tokio::net::TcpListener;
-use tower_sessions_sqlx_store::PostgresStore;
+use tower_sessions_sqlx_store::{SqliteStore};
 use tracing::info;
-use tracing::log::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
@@ -35,24 +34,28 @@ async fn main() -> anyhow::Result<()> {
 
     // Logging
     tracing_subscriber::registry()
+        .with(EnvFilter::new(std::env::var("RUST_LOG").unwrap_or_else(
+            |_| "info,axum_login=off,tower_sessions=off,sqlx=warn,tower_http=info".into(),
+        )))
         .with(tracing_subscriber::fmt::layer().compact())
-        .with(EnvFilter::from_default_env())
         .init();
 
-    let connect_options = PgConnectOptions::from_str(&vars.database_url)
-        .expect("Failed to deserialize connection string")
-        .log_statements(LevelFilter::Trace);
+    let connection_options = SqliteConnectOptions::from_str(&vars.database_url)
+        .expect("Failed to parse Database URL")
+        .foreign_keys(true)
+        .busy_timeout(Duration::from_secs(5))
+        .pragma("temp_store", "memory")
+        .pragma("cache_size", "-20000")
+        .optimize_on_close(true, None);
 
-    // Database pool and app state
-    let pool = PgPoolOptions::new()
-        .max_connections(32)
-        .connect_with(connect_options)
+    let pool = SqlitePoolOptions::new()
+        .min_connections(0)
+        .max_connections(4)
+        .connect_with(connection_options)
         .await
-        .expect("Error building the connection pool");
+        .expect("Failed to create Read-Only DB Pool");
 
-    if vars.auto_migrate_database {
-        sqlx::migrate!().run(&pool).await?;
-    }
+    sqlx::migrate!().run(&pool).await?;
 
     let app_state = AppState::new(
         pool.clone(),
@@ -60,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Migrate the sessions store and delete expired sessions
-    let session_store = PostgresStore::new(pool);
+    let session_store = SqliteStore::new(pool);
     session_store
         .migrate()
         .await

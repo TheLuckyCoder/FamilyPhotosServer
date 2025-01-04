@@ -11,15 +11,11 @@ use time::macros::format_description;
 use time::{OffsetDateTime, PrimitiveDateTime};
 use tracing::error;
 
-pub fn get_timestamp_for_path<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
+pub fn get_timestamp_for_path<P: AsRef<Path>>(path: P) -> Option<OffsetDateTime> {
     get_json_timestamp(path.as_ref())
         .map_or_else(
             || get_exif_timestamp(path.as_ref()),
-            |json_timestamp| {
-                OffsetDateTime::from_unix_timestamp(json_timestamp as i64)
-                    .map(|parsed| convert_to_primitive_time(&parsed))
-                    .ok()
-            },
+            |json_timestamp| OffsetDateTime::from_unix_timestamp(json_timestamp as i64).ok(),
         )
         .or_else(|| get_regex_timestamp(path))
 }
@@ -67,7 +63,7 @@ fn get_json_timestamp(path: &Path) -> Option<u64> {
     }
 }
 
-fn is_datetime(f: &Field, tag: Tag) -> Option<PrimitiveDateTime> {
+fn is_datetime(f: &Field, tag: Tag) -> Option<OffsetDateTime> {
     let format = format_description!("[year]:[month]:[day] [hour]:[minute]:[second]");
 
     fn single_ascii(value: &Value) -> Option<&str> {
@@ -86,13 +82,13 @@ fn is_datetime(f: &Field, tag: Tag) -> Option<PrimitiveDateTime> {
     }
 
     if f.tag == tag {
-        single_ascii(&f.value).and_then(|s| PrimitiveDateTime::parse(s, &format).ok())
+        single_ascii(&f.value).and_then(|s| OffsetDateTime::parse(s, &format).ok())
     } else {
         None
     }
 }
 
-fn get_exif_timestamp(path: &Path) -> Option<PrimitiveDateTime> {
+fn get_exif_timestamp(path: &Path) -> Option<OffsetDateTime> {
     let mime = MimeGuess::from_ext(path.extension()?.to_str()?).first_or_octet_stream();
     if mime.type_() != "image" {
         return None;
@@ -119,9 +115,12 @@ fn get_exif_timestamp(path: &Path) -> Option<PrimitiveDateTime> {
     None
 }
 
-fn get_regex_timestamp<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
-    static DATE_HOUR_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})").unwrap());
-    static DATE_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{4})\D?(\d{2})\D?(\d{2})").unwrap());
+fn get_regex_timestamp<P: AsRef<Path>>(path: P) -> Option<OffsetDateTime> {
+    static DATE_HOUR_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(\d{4})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})\D*(\d{2})").unwrap()
+    });
+    static DATE_PATTERN: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(\d{4})\D?(\d{2})\D?(\d{2})").unwrap());
     static MILLIS_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r".*(\d{13})").unwrap());
 
     let name = path.as_ref().file_stem()?.to_string_lossy().to_string();
@@ -141,7 +140,7 @@ fn get_regex_timestamp<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
         );
 
         if let Ok(parsed_time) = result {
-            return Some(parsed_time);
+            return Some(parsed_time.assume_utc());
         }
     }
 
@@ -153,7 +152,7 @@ fn get_regex_timestamp<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
             format!("{year}{month}{day} 000000").as_str(),
             format_description!("[year][month][day] [hour][minute][second]"),
         ) {
-            return Some(parsed_time);
+            return Some(parsed_time.assume_utc());
         }
     }
 
@@ -161,15 +160,11 @@ fn get_regex_timestamp<P: AsRef<Path>>(path: P) -> Option<PrimitiveDateTime> {
         let millis: i64 = capture[1].parse().ok()?;
         let seconds = millis / 1000;
         if let Ok(parsed_time) = OffsetDateTime::from_unix_timestamp(seconds) {
-            return Some(convert_to_primitive_time(&parsed_time));
+            return Some(parsed_time);
         }
     }
 
     None
-}
-
-fn convert_to_primitive_time(date_time: &OffsetDateTime) -> PrimitiveDateTime {
-    PrimitiveDateTime::new(date_time.date(), date_time.time())
 }
 
 #[cfg(test)]
@@ -180,7 +175,7 @@ mod tests {
 
     #[test]
     fn test_regex_timestamp() {
-        let expected_date = Some(datetime!(2016-09-22 16:04:30));
+        let expected_date = Some(datetime!(2016-09-22 16:04:30 UTC));
         assert_eq!(
             get_regex_timestamp("IMG_20160922_160430.jpg"),
             expected_date
@@ -193,18 +188,15 @@ mod tests {
 
         assert_eq!(
             get_regex_timestamp("20160922.jpg"),
-            Some(datetime!(2016-09-22 00:00:00))
+            Some(datetime!(2016-09-22 00:00:00 UTC))
         );
 
         assert_eq!(
             get_regex_timestamp("2016_09_22.jpg"),
-            Some(datetime!(2016-09-22 00:00:00))
+            Some(datetime!(2016-09-22 00:00:00 UTC))
         );
 
-        assert_eq!(
-            get_regex_timestamp("2016__09_22.jpg"),
-            None
-        );
+        assert_eq!(get_regex_timestamp("2016__09_22.jpg"), None);
 
         assert_eq!(
             get_regex_timestamp("random-1474560270000.jpg"),
