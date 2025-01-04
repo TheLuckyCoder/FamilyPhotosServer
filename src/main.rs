@@ -1,11 +1,11 @@
-use std::net::SocketAddr;
-use std::str::FromStr;
-use std::time::Duration;
 use anyhow::Context;
 use axum_login::tower_sessions::ExpiredDeletion;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::net::SocketAddr;
+use std::str::FromStr;
+use std::time::Duration;
 use tokio::net::TcpListener;
-use tower_sessions_sqlx_store::{SqliteStore};
+use tower_sessions_sqlx_store::SqliteStore;
 use tracing::info;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -28,9 +28,9 @@ mod utils;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Environment Variables
-    EnvVariables::init();
     let vars = EnvVariables::get_all();
+    // Creates necessary folders
+    let storage_resolver = StorageResolver::new(vars.storage_path, vars.previews_path);
 
     // Logging
     tracing_subscriber::registry()
@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer().compact())
         .init();
 
-    let connection_options = SqliteConnectOptions::from_str(&vars.database_url)
+    let connection_options = SqliteConnectOptions::from_str(&vars.database_path)
         .expect("Failed to parse Database URL")
         .foreign_keys(true)
         .busy_timeout(Duration::from_secs(5))
@@ -57,10 +57,7 @@ async fn main() -> anyhow::Result<()> {
 
     sqlx::migrate!().run(&pool).await?;
 
-    let app_state = AppState::new(
-        pool.clone(),
-        StorageResolver::new(vars.storage_path, vars.previews_path),
-    );
+    let app_state = AppState::new(pool.clone(), storage_resolver);
 
     // Migrate the sessions store and delete expired sessions
     let session_store = SqliteStore::new(pool);
@@ -86,14 +83,14 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Server listening on port {}", vars.server_port);
 
-    let http_service = http::router(app_state, session_store)
-        .into_make_service();
+    let http_service = http::router(app_state, session_store).into_make_service();
     let addr = SocketAddr::from(([127, 0, 0, 1], vars.server_port));
     let listener = TcpListener::bind(addr).await?;
 
     axum::serve(listener, http_service)
         .with_graceful_shutdown(http::shutdown_signal())
-        .await.context("Failed to start server")
+        .await
+        .context("Failed to start server")
 }
 
 async fn create_public_user(repo: &UsersRepository) -> anyhow::Result<()> {
