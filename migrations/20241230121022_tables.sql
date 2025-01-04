@@ -17,7 +17,7 @@ CREATE TABLE photos
     FOREIGN KEY (user_id) REFERENCES users (id)
 );
 
-CREATE INDEX photos_created_at_desc_index ON photos (created_at DESC);
+CREATE INDEX photos_user_created_at_desc_index ON photos (user_id, created_at DESC);
 
 CREATE TABLE favorite_photos
 (
