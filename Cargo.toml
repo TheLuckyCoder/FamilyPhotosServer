@@ -1,7 +1,7 @@
 [package]
 name = "familyphotos"
-authors = ["Filea Răzvan-Gheorghe <razvan.filea@gmail.com>"]
-version = "3.2.3"
+authors = ["Filea Răzvan-Gheorghe"]
+version = "4.0.0"
 edition = "2021"
 
 [profile.release]
@@ -21,14 +21,14 @@ axum = { version = "0.7", features = ["multipart"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors"] }
 axum-login = "0.16"
-tower-sessions-sqlx-store = { version = "0.14", features = ["postgres"] }
+tower-sessions-sqlx-store = { version = "0.14", features = ["sqlite"] }
 
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio", "macros", "time", "postgres", "migrate"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "macros", "time", "sqlite", "migrate"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -38,7 +38,7 @@ serde_json = "1.0"
 clap = { version = "4.5", features = ["derive", "cargo"] }
 regex = "1"
 wait-timeout = "0.2"
-time = { version = "0.3", features = ["macros", "parsing"] }
+time = { version = "0.3", features = ["macros", "parsing", "serde"] }
 dotenvy = "0.15"
 walkdir = "2.5"
 mime_guess = "2"

@@ -3,24 +3,25 @@ use crate::utils::password_hash::validate_credentials;
 use argon2::password_hash;
 use async_trait::async_trait;
 use axum_login::{AuthnBackend, UserId};
-use sqlx::{query, query_as, Error, PgPool};
+use sqlx::{query, query_as, Error, SqlitePool};
 use tokio::task;
 
 #[derive(Clone)]
 pub struct UsersRepository {
-    pool: PgPool,
+    pool: SqlitePool,
 }
 
 impl UsersRepository {
-    pub fn new(pool: PgPool) -> Self {
+    pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
 
     pub async fn get_user<T: AsRef<str>>(&self, user_name: T) -> Option<User> {
+        let user_name = user_name.as_ref();
         query_as!(
             User,
             "select * from users where id = $1",
-            user_name.as_ref()
+            user_name
         )
         .fetch_optional(&self.pool)
         .await
@@ -46,7 +47,8 @@ impl UsersRepository {
     }
 
     pub async fn delete_user<T: AsRef<str>>(&self, user_name: T) -> Result<(), Error> {
-        query!("delete from users where id = $1", user_name.as_ref())
+        let user_name = user_name.as_ref();
+        query!("delete from users where id = $1", user_name)
             .execute(&self.pool)
             .await
             .map(|_| ())

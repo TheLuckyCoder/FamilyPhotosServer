@@ -3,13 +3,13 @@ use axum::routing::get;
 use axum::Router;
 use axum_login::tower_sessions::{Expiry, SessionManagerLayer};
 use axum_login::AuthManagerLayerBuilder;
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use time::Duration;
 use tokio::signal;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use tower_http::{cors, trace};
-use tower_sessions_sqlx_store::PostgresStore;
+use tower_sessions_sqlx_store::SqliteStore;
 use tracing::Level;
 
 use crate::repo::photos_repo::PhotosRepository;
@@ -20,7 +20,7 @@ mod photos_api;
 mod users_api;
 mod utils;
 
-pub fn router(app_state: AppState, session_store: PostgresStore) -> Router {
+pub fn router(app_state: AppState, session_store: SqliteStore) -> Router {
     let session_layer = SessionManagerLayer::new(session_store)
         .with_expiry(Expiry::OnInactivity(Duration::days(90)));
 
@@ -49,7 +49,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(pool: PgPool, storage: StorageResolver) -> Self {
+    pub fn new(pool: SqlitePool, storage: StorageResolver) -> Self {
         Self {
             storage,
             users_repo: UsersRepository::new(pool.clone()),
