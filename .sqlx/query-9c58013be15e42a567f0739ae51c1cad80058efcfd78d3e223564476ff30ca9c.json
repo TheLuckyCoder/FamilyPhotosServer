@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "select * from photos where id = $1",
+  "query": "select photos.*,\n                exists(select 1 from favorite_photos as fp where fp.user_id = $1 and fp.photo_id = photos.id)\n                as 'is_favorite!: bool' from photos where photos.user_id = $1 order by photos.created_at desc",
   "describe": {
     "columns": [
       {
@@ -32,6 +32,11 @@
         "name": "folder",
         "ordinal": 5,
         "type_info": "Text"
+      },
+      {
+        "name": "is_favorite!: bool",
+        "ordinal": 6,
+        "type_info": "Integer"
       }
     ],
     "parameters": {
@@ -43,8 +48,9 @@
       false,
       false,
       false,
-      true
+      true,
+      false
     ]
   },
-  "hash": "dce290d77a56c4a75d26465e7e588853af229f63527222c8e3236422c27c9665"
+  "hash": "9c58013be15e42a567f0739ae51c1cad80058efcfd78d3e223564476ff30ca9c"
 }

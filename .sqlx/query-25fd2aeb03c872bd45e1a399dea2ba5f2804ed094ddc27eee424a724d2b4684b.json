@@ -1,13 +1,10 @@
 {
-  "db_name": "PostgreSQL",
+  "db_name": "SQLite",
   "query": "insert into favorite_photos (photo_id, user_id) values ($1, $2)",
   "describe": {
     "columns": [],
     "parameters": {
-      "Left": [
-        "Int8",
-        "Text"
-      ]
+      "Right": 2
     },
     "nullable": []
   },

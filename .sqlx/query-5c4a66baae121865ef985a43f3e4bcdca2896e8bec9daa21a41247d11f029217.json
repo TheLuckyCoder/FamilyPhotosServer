@@ -1,43 +1,41 @@
 {
-  "db_name": "PostgreSQL",
+  "db_name": "SQLite",
   "query": "select * from photos where photos.user_id = $1 order by photos.created_at desc",
   "describe": {
     "columns": [
       {
-        "ordinal": 0,
         "name": "id",
-        "type_info": "Int8"
+        "ordinal": 0,
+        "type_info": "Integer"
       },
       {
-        "ordinal": 1,
         "name": "user_id",
+        "ordinal": 1,
         "type_info": "Text"
       },
       {
-        "ordinal": 2,
         "name": "name",
+        "ordinal": 2,
         "type_info": "Text"
       },
       {
-        "ordinal": 3,
         "name": "created_at",
-        "type_info": "Timestamp"
+        "ordinal": 3,
+        "type_info": "Datetime"
       },
       {
-        "ordinal": 4,
         "name": "file_size",
-        "type_info": "Int8"
+        "ordinal": 4,
+        "type_info": "Integer"
       },
       {
-        "ordinal": 5,
         "name": "folder",
+        "ordinal": 5,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Left": [
-        "Text"
-      ]
+      "Right": 1
     },
     "nullable": [
       false,

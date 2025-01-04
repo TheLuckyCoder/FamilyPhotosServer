@@ -1,17 +1,10 @@
 {
-  "db_name": "PostgreSQL",
+  "db_name": "SQLite",
   "query": "update photos set user_id = $2, name = $3, created_at = $4, file_size = $5, folder = $6 where id = $1",
   "describe": {
     "columns": [],
     "parameters": {
-      "Left": [
-        "Int8",
-        "Text",
-        "Text",
-        "Timestamp",
-        "Int8",
-        "Text"
-      ]
+      "Right": 6
     },
     "nullable": []
   },
