@@ -156,7 +156,7 @@ async fn get_photo_exif(
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct UploadDataQuery {
-    #[serde(with = "timestamp::milliseconds")]
+    #[serde(with = "timestamp")]
     time_created: OffsetDateTime,
     folder_name: Option<String>,
     #[serde(default)]

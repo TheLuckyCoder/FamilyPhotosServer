@@ -95,7 +95,7 @@ The server will generate the following folder structure in the STORAGE_PATH fold
 ```
 ├───.familyphotos.db # Database (if not specified elsewhere)
 │
-├───.preview/ # Folder for previews (if not specified elsewhere)
+├───.previews/ # Folder for previews (if not specified elsewhere)
 │
 ├───public/ # The folder of the "public" user, alas photos who belong to everyone
 │   ├───<album_name>/ # Folder for albums aka "folders"
