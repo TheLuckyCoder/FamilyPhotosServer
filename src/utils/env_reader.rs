@@ -14,7 +14,7 @@ where
 pub struct EnvVariables {
     pub server_port: u16,
     pub storage_path: PathBuf,
-    pub database_path: String,
+    pub database_url: String,
     pub previews_path: PathBuf,
     pub scan_new_files: bool,
 }
@@ -36,12 +36,12 @@ impl EnvVariables {
             panic!("PREVIEWS_PATH must be a directory!")
         }
 
-        let database_path = std::env::var("DATABASE_PATH")
+        let database_url = std::env::var("DATABASE_URL")
             .map(PathBuf::from)
             .unwrap_or_else(|_| storage_path.join(".familyphotos.db"));
         
-        if database_path.exists() && !database_path.is_file() {
-            panic!("DATABASE_PATH must be a file!")
+        if database_url.exists() && !database_url.is_file() {
+            panic!("DATABASE_URL must be a file!")
         }
 
         Self {
@@ -49,7 +49,7 @@ impl EnvVariables {
                 .parse()
                 .expect("SERVER_PORT must be a valid port number!"),
             storage_path,
-            database_path: database_path.to_string_lossy().to_string(),
+            database_url: database_url.to_string_lossy().to_string(),
             previews_path,
             scan_new_files: optional_env_var("SCAN_NEW_FILES", true),
         }

@@ -37,7 +37,7 @@ Below you can see all the environment variables that can be configured
 Variables in bold **must** be specified.
 - **SERVER_PORT**: The port the server should listen on
 - **STORAGE_PATH**: The path to the folder where the photos will be stored
-- DATABASE_PATH: Alternative path for the database. Must have the format "sqlite:://path/to/database.db" [default: in ${STORAGE_PATH}/.familyphotos.db]
+- DATABASE_URL: Alternative path for the database. Must have the format "sqlite:://path/to/database.db" [default: in ${STORAGE_PATH}/.familyphotos.db]
 - PREVIEWS_PATH: Alternative storage path for photo previews (this, for example is useful when you want to store the photos on an HDD but the previews on an SSD) [default: in ${STORAGE_PATH}/.preview]
 - SCAN_NEW_FILES: Scan the storage for external changes at startup [default: true]
 

@@ -1,9 +1,8 @@
 use anyhow::Context;
 use axum_login::tower_sessions::ExpiredDeletion;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::time::Duration;
 use tokio::net::TcpListener;
 use tower_sessions_sqlx_store::SqliteStore;
 use tracing::info;
@@ -40,10 +39,10 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer().compact())
         .init();
 
-    let connection_options = SqliteConnectOptions::from_str(&vars.database_path)
+    let connection_options = SqliteConnectOptions::from_str(&vars.database_url)
         .expect("Failed to parse Database URL")
         .foreign_keys(true)
-        .busy_timeout(Duration::from_secs(5))
+        .journal_mode(SqliteJournalMode::Delete)
         .pragma("temp_store", "memory")
         .pragma("cache_size", "-20000")
         .optimize_on_close(true, None);
