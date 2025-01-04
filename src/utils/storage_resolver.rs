@@ -8,20 +8,14 @@ pub struct StorageResolver {
 }
 
 impl StorageResolver {
-    pub fn new(storage_path: String, preview_path: Option<String>) -> StorageResolver {
-        let base_folder = PathBuf::from(storage_path);
-
-        let preview_folder = preview_path.map(PathBuf::from).unwrap_or_else(|| {
-            let mut path = base_folder.clone();
-            path.push(".preview");
-            path
-        });
-
-        if !base_folder.exists() {
-            fs::create_dir_all(base_folder.as_path())
-                .expect("Could not create the base storage path");
-        } else {
-            assert!(base_folder.is_dir());
+    pub fn new(storage_folder: PathBuf, preview_folder: PathBuf) -> StorageResolver {
+        if !storage_folder.exists() {
+            fs::create_dir_all(&storage_folder).unwrap_or_else(|_| {
+                panic!(
+                    "Failed to create storage folder at {}",
+                    storage_folder.display()
+                )
+            });
         }
 
         if !preview_folder.exists() {
@@ -31,12 +25,10 @@ impl StorageResolver {
                     preview_folder.display()
                 )
             });
-        } else {
-            assert!(preview_folder.is_dir());
         }
 
         StorageResolver {
-            storage_folder: base_folder,
+            storage_folder,
             preview_folder,
         }
     }
