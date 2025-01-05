@@ -22,7 +22,7 @@ pub struct EnvVariables {
 impl EnvVariables {
     pub fn get_all() -> Self {
         dotenvy::dotenv().ok();
-        
+
         let storage_path = PathBuf::from(required_env_var("STORAGE_PATH"));
         if storage_path.exists() && !storage_path.is_dir() {
             panic!("STORAGE_PATH must be a directory!")
@@ -31,7 +31,7 @@ impl EnvVariables {
         let previews_path = std::env::var("PREVIEWS_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|_| storage_path.join(".previews"));
-        
+
         if previews_path.exists() && !previews_path.is_dir() {
             panic!("PREVIEWS_PATH must be a directory!")
         }
@@ -39,7 +39,7 @@ impl EnvVariables {
         let database_url = std::env::var("DATABASE_URL")
             .map(PathBuf::from)
             .unwrap_or_else(|_| storage_path.join(".familyphotos.db"));
-        
+
         if database_url.exists() && !database_url.is_file() {
             panic!("DATABASE_URL must be a file!")
         }

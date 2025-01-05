@@ -16,9 +16,11 @@ pub fn router() -> Router {
 }
 
 async fn profile(auth_session: AuthSession) -> impl IntoResponse {
-    auth_session.user.map_or(
-        StatusCode::UNAUTHORIZED.into_response(),
-        |user| Json(SimpleUser::from(user)).into_response())
+    auth_session
+        .user
+        .map_or(StatusCode::UNAUTHORIZED.into_response(), |user| {
+            Json(SimpleUser::from(user)).into_response()
+        })
 }
 
 async fn login(

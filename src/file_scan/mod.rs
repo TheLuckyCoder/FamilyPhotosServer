@@ -1,6 +1,6 @@
-use tokio::task::JoinHandle;
 use crate::file_scan::data_scan::DataScan;
 use crate::http::AppState;
+use tokio::task::JoinHandle;
 use tracing::debug;
 
 mod data_scan;

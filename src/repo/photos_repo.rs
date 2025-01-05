@@ -1,7 +1,7 @@
-use crate::model::photo::{Photo, PhotoBase, PhotoBody, PhotoDto};
+use crate::model::photo::{Photo, PhotoBase, PhotoBody};
 use crate::utils::internal_error;
 use axum::response::ErrorResponse;
-use sqlx::{query, query_as, SqlitePool, QueryBuilder, Sqlite};
+use sqlx::{query, query_as, QueryBuilder, Sqlite, SqlitePool};
 
 #[derive(Clone)]
 pub struct PhotosRepository {
@@ -27,31 +27,29 @@ impl PhotosRepository {
             .map_err(internal_error)
     }
 
-    pub async fn get_photos_by_user<T: AsRef<str>>(
+    pub async fn get_favorite_photos(
         &self,
-        user_id: T,
+        user_id: impl AsRef<str>,
+    ) -> Result<Vec<i64>, ErrorResponse> {
+        let user_id = user_id.as_ref();
+        query!(
+            "select photo_id from favorite_photos where user_id = $1",
+            user_id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map(|list| list.into_iter().map(|record| record.photo_id).collect())
+        .map_err(internal_error)
+    }
+
+    pub async fn get_photos_by_user(
+        &self,
+        user_id: impl AsRef<str>,
     ) -> Result<Vec<Photo>, ErrorResponse> {
         let user_id = user_id.as_ref();
         query_as!(
             Photo,
             "select * from photos where photos.user_id = $1 order by photos.created_at desc",
-            user_id
-        )
-        .fetch_all(&self.pool)
-        .await
-        .map_err(internal_error)
-    }
-
-    pub async fn get_photos_dto_by_user<T: AsRef<str>>(
-        &self,
-        user_id: T,
-    ) -> Result<Vec<PhotoDto>, ErrorResponse> {
-        let user_id = user_id.as_ref();
-        query_as!(
-            PhotoDto,
-            r#"select photos.*,
-                exists(select 1 from favorite_photos as fp where fp.user_id = $1 and fp.photo_id = photos.id)
-                as 'is_favorite!: bool' from photos where photos.user_id = $1 order by photos.created_at desc"#,
             user_id
         )
         .fetch_all(&self.pool)
@@ -65,7 +63,7 @@ impl PhotosRepository {
         let created_at = photo.created_at();
         let file_size = photo.file_size();
         let folder_name = photo.folder_name();
-        
+
         query_as!(
             Photo,
             "insert into photos (user_id, name, created_at, file_size, folder) values ($1, $2, $3, $4, $5) returning *",
@@ -136,7 +134,7 @@ impl PhotosRepository {
         let created_at = photo.created_at();
         let file_size = photo.file_size();
         let folder_name = photo.folder_name();
-        
+
         query!(
             "update photos set user_id = $2, name = $3, created_at = $4, file_size = $5, folder = $6 where id = $1",
             photo_id,
@@ -164,7 +162,7 @@ impl PhotosRepository {
         if photo_ids.is_empty() {
             return Ok(());
         }
-        
+
         let mut query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new("delete from photos where id in (");
 

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "select photo_id from favorite_photos where user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "photo_id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "faf15146cad6e358687b2f0f179342155218e66f1669bcb6ab78cf204c952a06"
+}
