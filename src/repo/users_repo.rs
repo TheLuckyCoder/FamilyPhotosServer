@@ -18,14 +18,10 @@ impl UsersRepository {
 
     pub async fn get_user<T: AsRef<str>>(&self, user_name: T) -> Option<User> {
         let user_name = user_name.as_ref();
-        query_as!(
-            User,
-            "select * from users where id = $1",
-            user_name
-        )
-        .fetch_optional(&self.pool)
-        .await
-        .ok()?
+        query_as!(User, "select * from users where id = $1", user_name)
+            .fetch_optional(&self.pool)
+            .await
+            .ok()?
     }
 
     pub async fn get_users(&self) -> Result<Vec<User>, Error> {

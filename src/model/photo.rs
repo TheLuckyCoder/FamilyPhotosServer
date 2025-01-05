@@ -124,16 +124,3 @@ impl PhotoBody {
         self.file_size = value;
     }
 }
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PhotoDto {
-    pub id: i64,
-    pub user_id: String,
-    pub name: String,
-    #[serde(with = "timestamp")]
-    pub created_at: OffsetDateTime,
-    pub file_size: i64,
-    pub folder: Option<String>,
-    pub is_favorite: bool,
-}

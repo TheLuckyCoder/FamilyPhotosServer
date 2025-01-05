@@ -31,6 +31,7 @@ pub fn router(app_state: AppState) -> Router {
         .route("/upload", post(upload_photo))
         .route("/delete/:photo_id", delete(delete_photo))
         .route("/change_location/:photo_id", post(change_photo_location))
+        .route("/favorite", get(get_favorites))
         .route("/favorite/:photo_id", post(add_favorite))
         .route("/favorite/:photo_id", delete(delete_favorite))
         .with_state(app_state)
@@ -69,9 +70,7 @@ async fn photos_list(
         user.id.as_str()
     };
 
-    Ok(Json(
-        state.photos_repo.get_photos_dto_by_user(user_id).await?,
-    ))
+    Ok(Json(state.photos_repo.get_photos_by_user(user_id).await?))
 }
 
 async fn preview_photo(
@@ -286,6 +285,15 @@ async fn change_photo_location(
         .map_err(|_| StatusError::create("Something went wrong moving the photo"))?;
 
     Ok(Json(changed_photo))
+}
+
+async fn get_favorites(
+    State(state): State<AppState>,
+    auth_session: AuthSession,
+) -> AxumResult<impl IntoResponse> {
+    let user = auth_session.user.unwrap();
+
+    Ok(Json(state.photos_repo.get_favorite_photos(user.id).await?))
 }
 
 async fn add_favorite(
