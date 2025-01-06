@@ -25,15 +25,15 @@ use time::serde::timestamp;
 pub fn router(app_state: AppState) -> Router {
     Router::new()
         .route("/", get(photos_list))
-        .route("/download/:photo_id", get(download_photo))
-        .route("/preview/:photo_id", get(preview_photo))
-        .route("/exif/:photo_id", get(get_photo_exif))
+        .route("/download/{photo_id}", get(download_photo))
+        .route("/preview/{photo_id}", get(preview_photo))
+        .route("/exif/{photo_id}", get(get_photo_exif))
         .route("/upload", post(upload_photo))
-        .route("/delete/:photo_id", delete(delete_photo))
-        .route("/change_location/:photo_id", post(change_photo_location))
+        .route("/delete/{photo_id}", delete(delete_photo))
+        .route("/change_location/{photo_id}", post(change_photo_location))
         .route("/favorite", get(get_favorites))
-        .route("/favorite/:photo_id", post(add_favorite))
-        .route("/favorite/:photo_id", delete(delete_favorite))
+        .route("/favorite/{photo_id}", post(add_favorite))
+        .route("/favorite/{photo_id}", delete(delete_favorite))
         .with_state(app_state)
 }
 
