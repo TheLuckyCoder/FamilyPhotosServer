@@ -3,17 +3,21 @@
 An open source self-hosted photo and video server for your family written in Rust.
 
 ## How to set up
+
 Build the docker image, set up the environment variables and run the image.<br>
 
 It's expected that you run a proxy like Nginx to handle TLS if you need it.
 
 ### Docker
+
 Clone the repository and run the following command to build a docker image:
+
 ```shell
 docker build -t familyphotos .
 ```
 
 ### Docker Compose
+
 Here is an example of a Docker compose file
 
 ```
@@ -34,23 +38,32 @@ services:
 Below you can see all the environment variables that can be configured
 
 ### Env Variables
+
 Variables in bold **must** be specified.
+
 - **SERVER_PORT**: The port the server should listen on
 - **STORAGE_PATH**: The path to the folder where the photos will be stored
-- DATABASE_URL: Alternative path for the database. Must have the format "sqlite:://path/to/database.db" [default: in ${STORAGE_PATH}/.familyphotos.db]
-- PREVIEWS_PATH: Alternative storage path for photo previews (this, for example is useful when you want to store the photos on an HDD but the previews on an SSD) [default: in ${STORAGE_PATH}/.preview]
+- DATABASE_URL: Alternative path for the database.
+  Must have the format "sqlite:://path/to/database.db" [default: in ${STORAGE_PATH}/.familyphotos.db]
+- PREVIEWS_PATH: Alternative storage path for photo previews (this, for example is useful when you want to store the
+  photos on an HDD but the previews on an SSD) [default: in ${STORAGE_PATH}/.preview]
 - SCAN_NEW_FILES: Scan the storage for external changes at startup [default: true]
 
 ### Creating user accounts
-On your first run, the server will generate a user account with the username "public" and a random password that will be printed in the console.<br>
+
+On your first run, the server will generate a user account with the username "public" and a random password that will be
+printed in the console.<br>
 Knowing this password is not relevant as this user is only used for photos that belong to everyone.<br><br>
 To create new user accounts run the following command using the CLI:<br>
+
 ```shell
 familyphotos user create -u <user_name> -d <display_name> [-p <password>]
 ```
+
 This will generate a new user with the given username, display name and password or a random one if not provided.<br>
 
 ### Example Nginx Config with HTTPS
+
 ```
 http {
     upstream familyphotos {
@@ -91,7 +104,9 @@ http {
 ```
 
 ## Folder structure
+
 The server will generate the following folder structure in the STORAGE_PATH folder:
+
 ```
 ├───.familyphotos.db # Database (if not specified elsewhere)
 │
@@ -109,16 +124,20 @@ The server will generate the following folder structure in the STORAGE_PATH fold
 ```
 
 ## HTTP API
+
 ```
 / : Ping api to check if the server is online
 /login : User login
 /logout : Logout current user
 
-/photos?public=bool : return a json list of all the user's photos or all public photos
-/photos/download/:photo_id : returns an image if the user has access to it
-/photos/preview/:photo_id : returns a scaled down image if the user has access to it
-/photos/exif/:photo_id : returns a scaled down image if the user has access to it
-/photos/upload : uploads a photo to the user's directory
-/photos/delete/:photo_id : delete's a photo if the user has access to it (any user can delete a public photo)
-/photos/change_location/:photo_id : returns a scaled down image if the user has access to it
+GET    /photos : return a json list of all the photos the user has access to, public or not
+GET    /photos/download/{photo_id} : returns an image if the user has access to it
+GET    /photos/preview/{photo_id} : returns a scaled down image if the user has access to it
+GET    /photos/exif/{photo_id} : returns a scaled down image if the user has access to it
+POST   /photos/upload : Upload an image or a video as a multipart to the user's directory
+DELETE /photos/delete/{photo_id} : delete's a photo if the user has access to it (any user can delete a public photo)
+POST   /photos/change_location/{photo_id} : returns a scaled down image if the user has access to it
+GET    /favorite : get the ids of all the photos the user has marked as favorite
+POST   /favorite/{photo_id} : mark a photo as favorite
+DELETE /favorite/{photo_id} : mark a photo as not favorite
 ```

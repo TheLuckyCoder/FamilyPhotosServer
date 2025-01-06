@@ -11,7 +11,7 @@ mod generate;
 pub async fn generate_all_previews(app_state: &AppState) -> Result<(), String> {
     let photos: Vec<Photo> = app_state
         .photos_repo
-        .get_photos()
+        .get_all_photos()
         .await
         .map_err(|_| "Could not load photos".to_string())?;
 

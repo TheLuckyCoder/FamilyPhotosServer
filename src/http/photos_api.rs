@@ -50,27 +50,18 @@ fn check_has_access(user: Option<User>, photo: &Photo) -> Result<User, ErrorResp
     }
 }
 
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PhotosListQuery {
-    #[serde(default)]
-    public: bool,
-}
-
 async fn photos_list(
     State(state): State<AppState>,
-    Query(query): Query<PhotosListQuery>,
     auth: AuthSession,
 ) -> AxumResult<impl IntoResponse> {
     let user = auth.user.ok_or(StatusCode::BAD_REQUEST)?;
 
-    let user_id = if query.public {
-        PUBLIC_USER_ID
-    } else {
-        user.id.as_str()
-    };
-
-    Ok(Json(state.photos_repo.get_photos_by_user(user_id).await?))
+    Ok(Json(
+        state
+            .photos_repo
+            .get_photos_by_user_and_public(user.id)
+            .await?,
+    ))
 }
 
 async fn preview_photo(
