@@ -1,4 +1,5 @@
 use crate::model::photo::{Photo, PhotoBase, PhotoBody};
+use crate::model::user::PUBLIC_USER_ID;
 use crate::utils::internal_error;
 use axum::response::ErrorResponse;
 use sqlx::{query, query_as, QueryBuilder, Sqlite, SqlitePool};
@@ -20,7 +21,7 @@ impl PhotosRepository {
             .map_err(internal_error)
     }
 
-    pub async fn get_photos(&self) -> Result<Vec<Photo>, ErrorResponse> {
+    pub async fn get_all_photos(&self) -> Result<Vec<Photo>, ErrorResponse> {
         query_as!(Photo, "select * from photos order by created_at desc")
             .fetch_all(&self.pool)
             .await
@@ -51,6 +52,22 @@ impl PhotosRepository {
             Photo,
             "select * from photos where photos.user_id = $1 order by photos.created_at desc",
             user_id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(internal_error)
+    }
+
+    pub async fn get_photos_by_user_and_public(
+        &self,
+        user_id: impl AsRef<str>,
+    ) -> Result<Vec<Photo>, ErrorResponse> {
+        let user_id = user_id.as_ref();
+        query_as!(
+            Photo,
+            "select * from photos where user_id = $1 or user_id = $2 order by created_at desc",
+            user_id,
+            PUBLIC_USER_ID
         )
         .fetch_all(&self.pool)
         .await
