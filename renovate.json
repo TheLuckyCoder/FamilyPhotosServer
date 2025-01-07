@@ -1,6 +1,6 @@
 {
   "extends": [
-    "config:base",
+    "config:recommended",
     ":preserveSemverRanges",
     ":rebaseStalePrs"
   ],
@@ -15,11 +15,11 @@
         "digest"
       ],
       "automerge": false,
-      "matchPackagePatterns": [
-        "*"
-      ],
       "groupName": "all non-major dependencies",
-      "groupSlug": "all-minor-patch"
+      "groupSlug": "all-minor-patch",
+      "matchPackageNames": [
+        "*"
+      ]
     }
   ]
 }
