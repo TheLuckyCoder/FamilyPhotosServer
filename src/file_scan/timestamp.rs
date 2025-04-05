@@ -68,8 +68,8 @@ fn is_datetime(f: &Field, tag: Tag) -> Option<OffsetDateTime> {
 
     fn single_ascii(value: &Value) -> Option<&str> {
         match value {
-            Value::Ascii(ref v) if v.len() == 1 => from_utf8(&v[0]).ok(),
-            Value::Ascii(ref v) if v.len() > 1 => {
+            Value::Ascii(v) if v.len() == 1 => from_utf8(&v[0]).ok(),
+            Value::Ascii(v) if v.len() > 1 => {
                 for t in &v[1..] {
                     if !t.is_empty() {
                         return None;

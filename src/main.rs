@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
         .max_connections(4)
         .connect_with(connection_options)
         .await
-        .expect("Failed to create Read-Only DB Pool");
+        .expect("Failed to create DB Pool");
 
     sqlx::migrate!().run(&pool).await?;
 
