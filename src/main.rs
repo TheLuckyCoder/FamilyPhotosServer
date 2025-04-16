@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
     let connection_options = SqliteConnectOptions::from_str(&vars.database_url)
         .expect("Failed to parse Database URL")
         .foreign_keys(true)
-        .journal_mode(SqliteJournalMode::Delete)
+        .journal_mode(SqliteJournalMode::Wal)
         .pragma("temp_store", "memory")
         .pragma("cache_size", "-20000")
         .optimize_on_close(true, None);
